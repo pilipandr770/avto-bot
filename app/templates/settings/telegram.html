@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block content %}
+<h3>Telegram Settings</h3>
+<form method="post">
+  <div class="mb-3">
+    <label class="form-label">Bot token</label>
+    <input class="form-control" name="bot_token" type="password">
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Channel username (e.g. @channelname)</label>
+    <input class="form-control" name="channel_username" value="{{ settings.telegram_channel_username if settings else '' }}">
+  </div>
+  <button class="btn btn-primary">Save & Test</button>
+</form>
+{% endblock %}

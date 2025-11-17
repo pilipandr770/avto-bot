@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% block content %}
+<h3>Gmail Settings</h3>
+<form method="post">
+  <div class="mb-3">
+    <label class="form-label">Gmail address</label>
+    <input class="form-control" name="gmail_address" value="{{ settings.gmail_address if settings else '' }}">
+  </div>
+  <div class="mb-3">
+    <label class="form-label">App password</label>
+    <input class="form-control" name="gmail_app_password" type="password">
+    <div class="form-text">Create an App Password in your Google Account (App passwords)</div>
+  </div>
+  <button class="btn btn-primary">Save & Test</button>
+</form>
+{% endblock %}

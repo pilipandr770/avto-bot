@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% block content %}
+<h3>Dashboard</h3>
+<div class="card mb-3">
+  <div class="card-body">
+    <p><strong>Gmail:</strong> {{ 'set' if settings and settings.gmail_address else 'not set' }}</p>
+    <p><strong>Telegram:</strong> {{ 'set' if settings and (settings.telegram_channel_username or settings.telegram_channel_id) else 'not set' }}</p>
+    <p><strong>OpenAI:</strong> {{ 'set' if settings and settings.openai_api_key_encrypted else 'not set' }}</p>
+    <p><strong>Auto-posting:</strong> {{ 'enabled' if settings and settings.auto_post_enabled else 'disabled' }}</p>
+    <a class="btn btn-sm btn-secondary" href="/settings/posting">Edit Posting Settings</a>
+  </div>
+</div>
+
+<h5>Recent logs</h5>
+<table class="table table-sm">
+  <thead><tr><th>When</th><th>Title</th><th>Sent</th><th>Error</th></tr></thead>
+  <tbody>
+  {% for l in logs %}
+    <tr>
+      <td>{{ l.created_at }}</td>
+      <td>{{ l.car_title or l.subject }}</td>
+      <td>{{ 'yes' if l.sent_to_channel else 'no' }}</td>
+      <td>{{ l.error[:80] if l.error }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+{% endblock %}

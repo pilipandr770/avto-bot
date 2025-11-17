@@ -1,0 +1,11 @@
+Flask>=2.2
+Flask-SQLAlchemy
+Flask-Migrate
+Flask-Login
+psycopg2-binary
+python-dotenv
+cryptography
+python-telegram-bot
+openai
+APScheduler
+gunicorn

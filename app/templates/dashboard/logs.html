@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+{% block content %}
+<h3>Posting Logs</h3>
+<table class="table table-sm">
+  <thead><tr><th>When</th><th>Subject</th><th>Sent</th><th>Error</th></tr></thead>
+  <tbody>
+  {% for l in logs %}
+    <tr>
+      <td>{{ l.created_at }}</td>
+      <td>{{ l.subject }}</td>
+      <td>{{ 'yes' if l.sent_to_channel else 'no' }}</td>
+      <td>{{ l.error[:150] if l.error }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
