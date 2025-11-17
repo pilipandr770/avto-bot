@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app
 from flask_login import login_required, current_user
 from ..extensions import db
-from ..models import UserSettings
+from ..models import UserSettings, PostingLog
 from ..security import encrypt_secret, decrypt_secret
 from ..telegram_client import ensure_channel_id
 from ..gmail_client import _connect_imap
@@ -33,9 +33,10 @@ def gmail():
         if request.form.get('clear') == 'gmail':
             s.gmail_address = None
             s.gmail_app_password_encrypted = None
+            PostingLog.query.filter_by(user_id=current_user.id).delete()
             db.session.add(s)
             db.session.commit()
-            flash('Gmail settings cleared')
+            flash('Gmail settings and posting history cleared')
             return redirect(url_for('settings.gmail'))
         s.gmail_address = request.form.get('gmail_address')
         pwd = request.form.get('gmail_app_password')
