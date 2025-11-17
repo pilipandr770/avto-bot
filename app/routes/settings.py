@@ -30,6 +30,13 @@ def index():
 def gmail():
     s = current_user.settings or UserSettings(user_id=current_user.id)
     if request.method == 'POST':
+        if request.form.get('clear') == 'gmail':
+            s.gmail_address = None
+            s.gmail_app_password_encrypted = None
+            db.session.add(s)
+            db.session.commit()
+            flash('Gmail settings cleared')
+            return redirect(url_for('settings.gmail'))
         s.gmail_address = request.form.get('gmail_address')
         pwd = request.form.get('gmail_app_password')
         if pwd:
@@ -85,6 +92,14 @@ def gmail_help():
 def telegram():
     s = current_user.settings or UserSettings(user_id=current_user.id)
     if request.method == 'POST':
+        if request.form.get('clear') == 'telegram':
+            s.telegram_bot_token_encrypted = None
+            s.telegram_channel_username = None
+            s.telegram_channel_id = None
+            db.session.add(s)
+            db.session.commit()
+            flash('Telegram settings cleared')
+            return redirect(url_for('settings.telegram'))
         token = request.form.get('bot_token')
         channel = request.form.get('channel_username')
         if token:
@@ -121,6 +136,12 @@ def telegram():
 def openai_settings():
     s = current_user.settings or UserSettings(user_id=current_user.id)
     if request.method == 'POST':
+        if request.form.get('clear') == 'openai':
+            s.openai_api_key_encrypted = None
+            db.session.add(s)
+            db.session.commit()
+            flash('OpenAI settings cleared')
+            return redirect(url_for('settings.openai_settings'))
         key = request.form.get('openai_api_key')
         if key:
             s.openai_api_key_encrypted = encrypt_secret(key, current_app.config.get('MASTER_SECRET_KEY'))

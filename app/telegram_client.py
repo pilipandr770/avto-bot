@@ -35,11 +35,11 @@ def send_car_post(user_settings, bot_token: str, text: str, photos: list):
         return False, "No chat ID or username"
     try:
         if photos:
-            # For simplicity, send text only if photos, but actually send photo with caption
-            # Assuming photos are URLs or bytes, but for now, send text
-            # To send photo, need to upload file
-            # For now, send message
-            _telegram_api_call(bot_token, 'sendMessage', chat_id=chat_id, text=text)
+            # Send first photo with caption
+            photo_data = photos[0]
+            files = {'photo': ('photo.jpg', photo_data, 'image/jpeg')}
+            data = {'chat_id': chat_id, 'caption': text}
+            _telegram_api_call(bot_token, 'sendPhoto', data=data, files=files)
         else:
             _telegram_api_call(bot_token, 'sendMessage', chat_id=chat_id, text=text)
         return True, None

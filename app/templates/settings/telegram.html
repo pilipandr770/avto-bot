@@ -19,6 +19,7 @@
     <input class="form-control" name="channel_username" value="{{ settings.telegram_channel_username if settings else '' }}">
   </div>
   <button class="btn btn-primary">Save & Test</button>
+  <button class="btn btn-warning ms-2" name="clear" value="telegram">Очистить Telegram</button>
 </form>
 <script>
 document.getElementById('reveal_token_btn').addEventListener('click', function(){
