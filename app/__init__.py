@@ -16,7 +16,6 @@ def create_app():
     # Ensure DB schema search_path set for every new connection
     schema = app.config.get("DB_SCHEMA")
 
-    @event.listens_for(db.engine, "connect")
     def set_search_path(dbapi_connection, connection_record):
         if schema:
             try:
@@ -25,6 +24,13 @@ def create_app():
                 cur.close()
             except Exception:
                 pass
+
+    try:
+        engine = db.get_engine(app)
+        event.listen(engine, "connect", set_search_path)
+    except Exception:
+        # if engine isn't available yet, skip attaching listener
+        pass
 
     # Register blueprints
     from .routes.auth import bp as auth_bp

@@ -4,8 +4,22 @@
 <form method="post">
   <div class="mb-3">
     <label class="form-label">OpenAI API key</label>
-    <input class="form-control" name="openai_api_key" type="password">
+    <div class="d-flex">
+      <input class="form-control me-2" name="openai_api_key" id="openai_key_input" type="password" placeholder="Enter new API key to replace">
+      <button type="button" class="btn btn-outline-secondary" id="reveal_openai_btn">Show</button>
+    </div>
+    {% if masked_key %}
+      <div class="form-text mt-1">Saved key: <code id="masked_openai">{{ masked_key }}</code></div>
+    {% else %}
+      <div class="form-text mt-1">No OpenAI key saved yet. The user pays the OpenAI usage.</div>
+    {% endif %}
   </div>
   <button class="btn btn-primary">Save & Test</button>
 </form>
+<script>
+document.getElementById('reveal_openai_btn').addEventListener('click', function(){
+  const inp = document.getElementById('openai_key_input');
+  if (inp.type === 'password') inp.type = 'text'; else inp.type = 'password';
+});
+</script>
 {% endblock %}

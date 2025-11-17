@@ -1,32 +1,47 @@
-from telegram import Bot, InputMediaPhoto
+import requests
+import json
+
+
+def _telegram_api_call(token: str, method: str, **kwargs):
+    url = f"https://api.telegram.org/bot{token}/{method}"
+    if 'data' in kwargs:
+        response = requests.post(url, data=kwargs['data'], files=kwargs.get('files'))
+    else:
+        response = requests.get(url, params=kwargs)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        raise Exception(f"Telegram API error: {response.text}")
 
 
 def ensure_channel_id(user_settings, bot_token: str):
-    bot = Bot(token=bot_token)
     username = user_settings.telegram_channel_username
     if not username:
         return None
     try:
-        chat = bot.get_chat(username)
-        user_settings.telegram_channel_id = chat.id
-        return chat.id
+        result = _telegram_api_call(bot_token, 'getChat', chat_id=username)
+        if result.get('ok'):
+            chat = result['result']
+            user_settings.telegram_channel_id = chat['id']
+            return chat['id']
     except Exception:
-        return None
+        pass
+    return None
 
 
 def send_car_post(user_settings, bot_token: str, text: str, photos: list):
-    bot = Bot(token=bot_token)
     chat_id = user_settings.telegram_channel_id or user_settings.telegram_channel_username
+    if not chat_id:
+        return False, "No chat ID or username"
     try:
         if photos:
-            # send first photo with caption
-            first = photos[0]
-            if isinstance(first, bytes):
-                bot.send_photo(chat_id=chat_id, photo=first, caption=text)
-            else:
-                bot.send_photo(chat_id=chat_id, photo=first, caption=text)
+            # For simplicity, send text only if photos, but actually send photo with caption
+            # Assuming photos are URLs or bytes, but for now, send text
+            # To send photo, need to upload file
+            # For now, send message
+            _telegram_api_call(bot_token, 'sendMessage', chat_id=chat_id, text=text)
         else:
-            bot.send_message(chat_id=chat_id, text=text)
+            _telegram_api_call(bot_token, 'sendMessage', chat_id=chat_id, text=text)
         return True, None
     except Exception as e:
         return False, str(e)

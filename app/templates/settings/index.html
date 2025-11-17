@@ -1,0 +1,10 @@
+{% extends 'base.html' %}
+{% block content %}
+<h3>Settings</h3>
+<ul class="list-group">
+  <li class="list-group-item"><a href="{{ url_for('settings.gmail') }}">Gmail settings</a></li>
+  <li class="list-group-item"><a href="{{ url_for('settings.telegram') }}">Telegram settings</a></li>
+  <li class="list-group-item"><a href="{{ url_for('settings.openai_settings') }}">OpenAI settings</a></li>
+  <li class="list-group-item"><a href="{{ url_for('settings.posting') }}">Posting settings</a></li>
+</ul>
+{% endblock %}

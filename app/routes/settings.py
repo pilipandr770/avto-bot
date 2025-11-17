@@ -5,9 +5,24 @@ from ..models import UserSettings
 from ..security import encrypt_secret, decrypt_secret
 from ..telegram_client import ensure_channel_id
 from ..gmail_client import _connect_imap
+from ..extensions import scheduler
 import openai
+import json
+try:
+    import requests
+except Exception:
+    requests = None
+import urllib.request
+import urllib.error
 
 bp = Blueprint('settings', __name__, url_prefix='/settings')
+
+
+@bp.route('/')
+@login_required
+def index():
+    """Settings index listing all per-user settings pages."""
+    return render_template('settings/index.html')
 
 
 @bp.route('/gmail', methods=['GET', 'POST'])
@@ -31,6 +46,38 @@ def gmail():
             flash('IMAP test failed: ' + str(e))
         return redirect(url_for('settings.gmail'))
     return render_template('settings/gmail.html', settings=s)
+
+
+@bp.route('/gmail/check', methods=['POST'])
+@login_required
+def gmail_check():
+    """Schedule an immediate mailbox check for the current user."""
+    from flask import current_app
+    from datetime import datetime
+    from ..tasks import check_inbox_for_user_id, process_user_inbox_once
+    from ..models import PostingLog
+
+    user_id = current_user.id
+    try:
+        # Run check synchronously now and report number of posting logs created
+        from flask import current_app as _current_app
+        with _current_app.app_context():
+            before = PostingLog.query.filter_by(user_id=user_id).count()
+            # run processing once for the user
+            process_user_inbox_once(current_user)
+            after = PostingLog.query.filter_by(user_id=user_id).count()
+            added = after - before
+        flash(f'Mailbox check completed — {added} new posting(s) created')
+    except Exception as e:
+        flash('Mailbox check failed: ' + str(e))
+    return redirect(url_for('settings.gmail'))
+
+
+@bp.route('/gmail/help')
+@login_required
+def gmail_help():
+    """Show instructions to create a Gmail App Password and how to paste it back."""
+    return render_template('settings/gmail_help.html')
 
 
 @bp.route('/telegram', methods=['GET', 'POST'])
@@ -58,7 +105,15 @@ def telegram():
         except Exception as e:
             flash('Telegram test failed: ' + str(e))
         return redirect(url_for('settings.telegram'))
-    return render_template('settings/telegram.html', settings=s)
+    # prepare masked token display
+    masked = None
+    try:
+        if s and s.telegram_bot_token_encrypted:
+            dec = decrypt_secret(s.telegram_bot_token_encrypted, current_app.config.get('MASTER_SECRET_KEY'))
+            masked = '•' * (len(dec) - 4) + dec[-4:]
+    except Exception:
+        masked = None
+    return render_template('settings/telegram.html', settings=s, masked_token=masked)
 
 
 @bp.route('/openai', methods=['GET', 'POST'])
@@ -71,15 +126,44 @@ def openai_settings():
             s.openai_api_key_encrypted = encrypt_secret(key, current_app.config.get('MASTER_SECRET_KEY'))
             db.session.add(s)
             db.session.commit()
-            # test small request
+            # test key by calling OpenAI REST API /models (works independent of client lib version)
             try:
-                openai.api_key = key
-                _ = openai.Model.list() if hasattr(openai, 'Model') else True
-                flash('OpenAI key OK')
+                headers = {'Authorization': f'Bearer {key}'}
+                url = 'https://api.openai.com/v1/models'
+                ok = False
+                msg = ''
+                if requests:
+                    r = requests.get(url, headers=headers, timeout=10)
+                    ok = r.status_code == 200
+                    msg = r.text
+                else:
+                    req = urllib.request.Request(url, headers=headers)
+                    with urllib.request.urlopen(req, timeout=10) as resp:
+                        data = resp.read()
+                        ok = resp.getcode() == 200
+                        msg = data.decode('utf-8')
+                if ok:
+                    flash('OpenAI key OK')
+                else:
+                    flash('OpenAI test failed: ' + (msg or 'unknown'))
+            except urllib.error.HTTPError as e:
+                try:
+                    body = e.read().decode('utf-8')
+                except Exception:
+                    body = str(e)
+                flash('OpenAI test failed: ' + body)
             except Exception as e:
                 flash('OpenAI test failed: ' + str(e))
         return redirect(url_for('settings.openai_settings'))
-    return render_template('settings/openai.html', settings=s)
+    # masked key for display
+    masked_key = None
+    try:
+        if s and s.openai_api_key_encrypted:
+            dec = decrypt_secret(s.openai_api_key_encrypted, current_app.config.get('MASTER_SECRET_KEY'))
+            masked_key = '•' * (len(dec) - 6) + dec[-6:]
+    except Exception:
+        masked_key = None
+    return render_template('settings/openai.html', settings=s, masked_key=masked_key)
 
 
 @bp.route('/posting', methods=['GET', 'POST'])

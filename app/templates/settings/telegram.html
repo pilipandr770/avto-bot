@@ -4,7 +4,15 @@
 <form method="post">
   <div class="mb-3">
     <label class="form-label">Bot token</label>
-    <input class="form-control" name="bot_token" type="password">
+    <div class="d-flex">
+      <input class="form-control me-2" name="bot_token" id="bot_token_input" type="password" placeholder="Enter new token to replace">
+      <button type="button" class="btn btn-outline-secondary" id="reveal_token_btn">Show</button>
+    </div>
+    {% if masked_token %}
+      <div class="form-text mt-1">Saved token: <code id="masked_token">{{ masked_token }}</code></div>
+    {% else %}
+      <div class="form-text mt-1">No token saved yet.</div>
+    {% endif %}
   </div>
   <div class="mb-3">
     <label class="form-label">Channel username (e.g. @channelname)</label>
@@ -12,4 +20,10 @@
   </div>
   <button class="btn btn-primary">Save & Test</button>
 </form>
+<script>
+document.getElementById('reveal_token_btn').addEventListener('click', function(){
+  const inp = document.getElementById('bot_token_input');
+  if (inp.type === 'password') inp.type = 'text'; else inp.type = 'password';
+});
+</script>
 {% endblock %}

@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% block content %}
+<h3>Как получить App Password для Gmail</h3>
+<p>Чтобы наше приложение могло подключаться по IMAP к вашему Gmail, необходимо сгенерировать «App password» в аккаунте Google и вставить его в поле «App password» на странице настроек.</p>
+<ol>
+  <li>Убедитесь, что в вашей учётной записи Google включена двухэтапная аутентификация (2-Step Verification). Если она не включена — включите её здесь: <a href="https://myaccount.google.com/security" target="_blank" rel="noopener">https://myaccount.google.com/security</a>.</li>
+  <li>Перейдите на страницу создания App passwords: <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener">https://myaccount.google.com/apppasswords</a>. (Если вы не видите эту страницу, значит двухэтапная аутентификация не включена или ваш аккаунт не поддерживает App passwords.)</li>
+  <li>В поле "Select app" выберите "Mail" или выберите "Other (Custom name)" и введите имя, например: <strong>avto-bot</strong>.</li>
+  <li>Нажмите "Generate" и скопируйте сгенерированный пароль (16 символов, без пробелов).</li>
+  <li>Вернитесь в настройки нашего приложения, вставьте этот пароль в поле "App password" и нажмите "Save & Test". Приложение выполнит тест IMAP-подключения и покажет результат.</li>
+</ol>
+<p>Примечания:</p>
+<ul>
+  <li>Если вы используете Google Workspace (корпоративный аккаунт), администратор может отключить App passwords. В этом случае необходимо использовать OAuth или попросить администратора разрешить использование App passwords.</li>
+  <li>App passwords — безопасный способ предоставить приложению доступ к почте без передачи основного пароля.</li>
+</ul>
+<p>
+  <a class="btn btn-primary" href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener">Перейти на страницу создания App Password</a>
+  <a class="btn btn-secondary" href="{{ url_for('settings.gmail') }}">Вернуться к настройкам</a>
+</p>
+{% endblock %}
