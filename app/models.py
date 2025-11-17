@@ -1,10 +1,15 @@
 from datetime import datetime
+import os
 from .extensions import db
 from flask_login import UserMixin
+
+# Use DB_SCHEMA env var so SQLAlchemy binds models to the correct schema
+DB_SCHEMA = os.environ.get('DB_SCHEMA', 'avto_bot')
 
 
 class User(db.Model, UserMixin):
     __tablename__ = 'users'
+    __table_args__ = {'schema': DB_SCHEMA}
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(255), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
@@ -14,6 +19,7 @@ class User(db.Model, UserMixin):
 
 class UserSettings(db.Model):
     __tablename__ = 'user_settings'
+    __table_args__ = {'schema': DB_SCHEMA}
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), unique=True)
     gmail_address = db.Column(db.String(255))
@@ -31,6 +37,7 @@ class UserSettings(db.Model):
 
 class PostingLog(db.Model):
     __tablename__ = 'posting_logs'
+    __table_args__ = {'schema': DB_SCHEMA}
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     gmail_message_id = db.Column(db.String(255))
