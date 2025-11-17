@@ -21,7 +21,7 @@ class UserSettings(db.Model):
     __tablename__ = 'user_settings'
     __table_args__ = {'schema': DB_SCHEMA}
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), unique=True)
+    user_id = db.Column(db.Integer, db.ForeignKey(f'{DB_SCHEMA}.users.id'), unique=True)
     gmail_address = db.Column(db.String(255))
     gmail_app_password_encrypted = db.Column(db.Text)
     telegram_bot_token_encrypted = db.Column(db.Text)
@@ -39,7 +39,7 @@ class PostingLog(db.Model):
     __tablename__ = 'posting_logs'
     __table_args__ = {'schema': DB_SCHEMA}
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    user_id = db.Column(db.Integer, db.ForeignKey(f'{DB_SCHEMA}.users.id'))
     gmail_message_id = db.Column(db.String(255))
     subject = db.Column(db.String(1024))
     car_title = db.Column(db.String(1024))
