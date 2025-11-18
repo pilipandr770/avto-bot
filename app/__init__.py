@@ -60,3 +60,5 @@ def create_app():
 
 # Import tasks to register job functions
 from . import tasks  # noqa: E402
+
+app = create_app()
