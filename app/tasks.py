@@ -10,6 +10,11 @@ from datetime import datetime
 import re
 import requests
 from bs4 import BeautifulSoup
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from webdriver_manager.chrome import ChromeDriverManager
+import time
 
 
 def extract_urls(text):
@@ -21,44 +26,55 @@ def extract_urls(text):
 def parse_listing_from_url(url):
     """Parse car listing from URL: extract title, description, photos."""
     try:
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
-            'Accept-Encoding': 'gzip, deflate',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1',
-        }
-        response = requests.get(url, headers=headers, timeout=10, allow_redirects=True)
-        response.raise_for_status()
-        soup = BeautifulSoup(response.text, 'html.parser')
+        # Set up Chrome options
+        options = Options()
+        options.add_argument('--headless')  # Run in headless mode
+        options.add_argument('--no-sandbox')
+        options.add_argument('--disable-dev-shm-usage')
+        options.add_argument('--disable-gpu')
+        options.add_argument('--window-size=1920,1080')
+        options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36')
+
+        # Initialize the driver
+        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+        driver.get(url)
         
-        # Extract title (e.g., from <title> or specific class)
+        # Wait for the page to load
+        time.sleep(3)  # Adjust as needed
+        
+        # Get the page source
+        soup = BeautifulSoup(driver.page_source, 'html.parser')
+        
+        # Extract title
         title = soup.find('title').get_text().strip() if soup.find('title') else 'Car listing'
         
-        # Extract description (look for common classes or all text)
+        # Extract description
         description = ''
-        # Try to find description divs
-        desc_divs = soup.find_all(['div', 'p'], class_=lambda c: c and ('description' in c.lower() or 'text' in c.lower()))
+        desc_divs = soup.find_all(['div', 'p'], class_=lambda c: c and ('description' in c.lower() or 'text' in c.lower() or 'desc' in c.lower()))
         if desc_divs:
             description = ' '.join([d.get_text().strip() for d in desc_divs])
         else:
-            # Fallback: all text
+            # Fallback
             description = soup.get_text().strip()
         
-        # Extract photos (img src)
+        # Extract photos
         photos = []
         for img in soup.find_all('img'):
-            src = img.get('src')
-            if src and src.startswith('http') and any(ext in src.lower() for ext in ['.jpg', '.jpeg', '.png', '.gif']):
+            src = img.get('src') or img.get('data-src') or img.get('data-lazy-src')
+            print(f"Found img src: {src}")
+            if src and src.startswith('https://img.classistatic.de/'):  # Specific to mobile.de images
                 try:
-                    img_response = requests.get(src, headers=headers, timeout=10)
-                    if img_response.status_code == 200:
+                    img_response = requests.get(src, timeout=10)
+                    print(f"Status code: {img_response.status_code}, Content-Type: {img_response.headers.get('content-type')}")
+                    if img_response.status_code == 200 and 'image' in img_response.headers.get('content-type', ''):
                         photos.append(img_response.content)
-                except:
-                    pass
+                        print(f"Downloaded photo: {src}")
+                except Exception as e:
+                    print(f"Error downloading {src}: {e}")
                 if len(photos) >= 10:
                     break
+        
+        driver.quit()
         
         return {
             'title': title,
@@ -66,6 +82,7 @@ def parse_listing_from_url(url):
             'photos': photos
         }
     except Exception as e:
+        print(f"Error parsing {url}: {e}")
         return None
 
 
