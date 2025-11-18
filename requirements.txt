@@ -10,3 +10,4 @@ openai
 APScheduler
 gunicorn
 requests
+beautifulsoup4
