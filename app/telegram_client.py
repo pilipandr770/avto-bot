@@ -35,11 +35,18 @@ def send_car_post(user_settings, bot_token: str, text: str, photos: list):
         return False, "No chat ID or username"
     try:
         if photos:
-            # Send first photo with caption
-            photo_data = photos[0]
-            files = {'photo': ('photo.jpg', photo_data, 'image/jpeg')}
-            data = {'chat_id': chat_id, 'caption': text}
-            _telegram_api_call(bot_token, 'sendPhoto', data=data, files=files)
+            # Limit to 10 photos
+            photos = photos[:10]
+            # Send media group (album)
+            media = []
+            files = {}
+            for i, photo_data in enumerate(photos):
+                media.append({'type': 'photo', 'media': f'attach://photo{i}'})
+                files[f'photo{i}'] = ('photo.jpg', photo_data, 'image/jpeg')
+            data = {'chat_id': chat_id, 'media': json.dumps(media)}
+            _telegram_api_call(bot_token, 'sendMediaGroup', data=data, files=files)
+            # Then send text message
+            _telegram_api_call(bot_token, 'sendMessage', chat_id=chat_id, text=text)
         else:
             _telegram_api_call(bot_token, 'sendMessage', chat_id=chat_id, text=text)
         return True, None

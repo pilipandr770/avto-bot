@@ -50,7 +50,7 @@ def process_user_inbox(user: User):
             }
 
             text = generate_listing_text(raw, settings.language or 'uk', settings.price_markup_eur or 0, openai_key)
-            photos = [a['content'] for a in msg.attachments if a.get('filename') and a['filename'].lower().endswith(('.jpg', '.jpeg', '.png', '.gif'))] if msg.attachments else []
+            photos = [a['content'] for a in msg.attachments if a.get('filename') and a['filename'].lower().endswith(('.jpg', '.jpeg', '.png', '.gif'))][:10] if msg.attachments else []
             ok, err = send_car_post(settings, bot_token, text, photos)
 
             log = PostingLog(user_id=user.id, gmail_message_id=msg.uid, subject=msg.subject, car_title=raw['title'], raw_price=str(raw.get('price')), final_price=str(settings.price_markup_eur or ''), sent_to_channel=bool(ok), sent_at=(datetime.utcnow() if ok else None), error=(err if not ok else None))
@@ -103,7 +103,7 @@ def process_user_inbox_once(user: User):
             }
 
             text = generate_listing_text(raw, settings.language or 'uk', settings.price_markup_eur or 0, openai_key)
-            photos = [a['content'] for a in msg.attachments if a.get('filename') and a['filename'].lower().endswith(('.jpg', '.jpeg', '.png', '.gif'))] if msg.attachments else []
+            photos = [a['content'] for a in msg.attachments if a.get('filename') and a['filename'].lower().endswith(('.jpg', '.jpeg', '.png', '.gif'))][:10] if msg.attachments else []
             ok, err = send_car_post(settings, bot_token, text, photos)
 
             log = PostingLog(user_id=user.id, gmail_message_id=msg.uid, subject=msg.subject, car_title=raw['title'], raw_price=str(raw.get('price')), final_price=str(settings.price_markup_eur or ''), sent_to_channel=bool(ok), sent_at=(datetime.utcnow() if ok else None), error=(err if not ok else None))
