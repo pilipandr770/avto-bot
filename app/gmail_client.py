@@ -94,6 +94,8 @@ def fetch_recent_mobilede_message(user_settings) -> List[EmailMessageData]:
     sample_uids = all_uids[-20:]
     messages: List[EmailMessageData] = []
 
+    print(f"DEBUG: Searching for mobile.de messages since {since_date}, found {len(all_uids)} total messages, checking last {len(sample_uids)}")
+
     for num in sample_uids:
         try:
             typ, msg_data = mail.fetch(num, '(RFC822)')
@@ -124,10 +126,13 @@ def fetch_recent_mobilede_message(user_settings) -> List[EmailMessageData]:
 
             body_combined = (text_body or '') + '\n' + (html_body or '')
             if 'mobile.de' in from_header or 'mobile.de' in body_combined.lower():
+                print(f"DEBUG: Found mobile.de message: UID={num.decode()}, From={from_header}, Subject={subject}")
                 messages.append(EmailMessageData(uid=num.decode(), subject=subject, text_body=text_body, html_body=html_body, attachments=attachments))
-        except Exception:
+        except Exception as e:
+            print(f"DEBUG: Error processing message {num}: {e}")
             continue
 
+    print(f"DEBUG: Total mobile.de messages found: {len(messages)}")
     mail.close()
     mail.logout()
     return messages
