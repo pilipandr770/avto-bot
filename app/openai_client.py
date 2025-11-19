@@ -67,7 +67,7 @@ def generate_listing_text(raw_data: dict, language: str, markup_eur: int, openai
         "- Mention that the price already includes our margin.\n"
         "- Use friendly, trustworthy tone; avoid excessive emojis (0-2 max).\n"
         "- Do NOT use markdown other than simple bullet points and line breaks.\n"
-        "- At the end of the post, add the link to the listing on a separate line.\n\n"
+        "- Do NOT include any URLs or links in the post.\n\n"
         "Source data for this car (you MUST rely on it, do not invent data):\n"
         f"Title: {raw_data.get('title')}\n"
         f"Base price from source (may be empty): {base_price}\n"
@@ -76,7 +76,6 @@ def generate_listing_text(raw_data: dict, language: str, markup_eur: int, openai
         f"Fuel: {raw_data.get('fuel')}\n"
         f"Gearbox: {raw_data.get('gearbox')}\n"
         f"Description from seller: {raw_data.get('description')}\n"
-        f"URL: {raw_data.get('url')}\n"
         f"Our margin to add: {markup_value} EUR\n"
         f"Final sale price in EUR (already with margin): {final_price}\n\n"
         "Full technical specs (key = value, use only if helpful):\n"
@@ -102,8 +101,6 @@ def generate_listing_text(raw_data: dict, language: str, markup_eur: int, openai
         ]
         if price_str:
             text_lines.append(f"Цена: {price_str}")
-        if raw_data.get('url'):
-            text_lines.append(str(raw_data.get('url')))
         text = "\n".join(line for line in text_lines if line)
 
     return text

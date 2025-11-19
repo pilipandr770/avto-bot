@@ -209,10 +209,12 @@ def parse_listing_from_url(url):
         photos = []
         photo_urls = []
 
-        # Prefer gallery images by class, fallback to data-testid
+        # Prefer gallery images by class, fallback to data-testid, then general img with data-src
         img_elements = soup.select('img.GalleryImage__image')
         if not img_elements:
             img_elements = soup.select('[data-testid^="image-"] img')
+        if not img_elements:
+            img_elements = soup.select('img[data-src]')
 
         for img in img_elements[:10]:
             src = img.get('src') or img.get('data-src') or ''
