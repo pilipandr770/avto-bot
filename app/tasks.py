@@ -74,7 +74,7 @@ def process_user_inbox(user: User):
 
             # Filter only mobile.de-related messages/URLs
             urls = extract_urls(body)
-            mobile_urls = list(set([u for u in urls if 'mobile.de' in u and ('details' in u or 'anzeigen' in u)]))
+            mobile_urls = list(set([u for u in urls if 'mobile.de' in u]))
 
             if not mobile_urls:
                 # Fallback to old parsing if no URLs
@@ -166,7 +166,7 @@ def process_user_inbox_once(user: User, messages=None):
 
             # Filter only mobile.de-related messages/URLs
             urls = extract_urls(body)
-            mobile_urls = list(set([u for u in urls if 'mobile.de' in u and ('details' in u or 'anzeigen' in u)]))
+            mobile_urls = list(set([u for u in urls if 'mobile.de' in u]))
             print(f"DEBUG: Found {len(mobile_urls)} mobile.de URLs in message {msg.uid}")
 
             if not mobile_urls:
