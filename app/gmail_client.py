@@ -58,14 +58,15 @@ def fetch_new_messages(user_settings) -> List[EmailMessageData]:
     return messages
 
 
-def fetch_recent_mobilede_message(user_settings) -> List[EmailMessageData]:
-        """Fetch recent messages (last 2 days) that look like they are from mobile.de.
 
-        Used only for manual testing from the settings UI. It considers both
-        read and unread messages and filters by:
-            - From header containing 'mobile.de', or
-            - message body containing 'mobile.de'.
-        """
+def fetch_recent_mobilede_message(user_settings) -> List[EmailMessageData]:
+    """Fetch recent messages (last 2 days) that look like they are from mobile.de.
+
+    Used only for manual testing from the settings UI. It considers both
+    read and unread messages and filters by:
+      - From header containing 'mobile.de', or
+      - message body containing 'mobile.de'.
+    """
     address = user_settings.gmail_address
     password = user_settings.gmail_app_password_decrypted if hasattr(user_settings, 'gmail_app_password_decrypted') else None
     if not address or not password:
