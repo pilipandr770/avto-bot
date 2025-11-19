@@ -35,6 +35,7 @@ def parse_mobile_de(url: str):
         print("DEBUG: Page load failed:", e)
         driver.quit()
         return None
+    print("DEBUG: Current URL after load:", driver.current_url)
     if '/auto-inserat/' not in driver.current_url:
         print("DEBUG: URL did not redirect to listing page, skipping")
         driver.quit()

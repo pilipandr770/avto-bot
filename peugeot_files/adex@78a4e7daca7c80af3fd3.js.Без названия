@@ -1,0 +1,1 @@
+(()=>{const e=`//dmp.theadex.com/d/230/${window.matchMedia("only screen and (max-width: 480px)").matches?2400:1121}/s/adex.js`;__tcfapi("isAdexAllowed",2,(function(t){if(t){var d=document.createElement("script");d.setAttribute("src",e),d.setAttribute("defer","defer"),document.body.appendChild(d)}}))})();
