@@ -474,6 +474,7 @@ def process_user_inbox_once(user: User, messages=None):
                 log = PostingLog(user_id=user.id, gmail_message_id=msg.uid, subject=msg.subject, car_title=raw['title'], raw_price=str(raw.get('price')), final_price=str(settings.price_markup_eur or ''), sent_to_channel=bool(ok), sent_at=(datetime.utcnow() if ok else None), error=(err if not ok else None))
                 db.session.add(log)
                 db.session.commit()
+                time.sleep(1)  # Rate limit prevention
             else:
                 # Process each mobile.de URL separately
                 for url in mobile_urls:
@@ -499,6 +500,7 @@ def process_user_inbox_once(user: User, messages=None):
                         log = PostingLog(user_id=user.id, gmail_message_id=msg.uid, subject=msg.subject, car_title=raw['title'], raw_price=str(raw.get('price')), final_price=str(settings.price_markup_eur or ''), sent_to_channel=bool(ok), sent_at=(datetime.utcnow() if ok else None), error=(err if not ok else None))
                         db.session.add(log)
                         db.session.commit()
+                        time.sleep(1)  # Rate limit prevention
                     else:
                         print(f"DEBUG: Failed to parse listing from {url}")
             # mark seen
