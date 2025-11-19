@@ -410,7 +410,7 @@ def process_user_inbox(user: User):
             db.session.commit()
 
 
-def process_user_inbox_once(user: User):
+def process_user_inbox_once(user: User, messages=None):
     """Process inbox for a user once regardless of their auto_post_enabled flag (used for manual checks)."""
     settings = user.settings
     master_key = current_app.config.get('MASTER_SECRET_KEY')
@@ -434,23 +434,29 @@ def process_user_inbox_once(user: User):
     except Exception:
         pass
 
-    messages = fetch_new_messages(settings)
+    if messages is None:
+        messages = fetch_new_messages(settings)
+    print(f"DEBUG: Processing {len(messages)} messages")
     for msg in messages:
         try:
+            print(f"DEBUG: Processing message UID {msg.uid}, Subject: {msg.subject}")
             body = msg.text_body or msg.html_body or ''
 
             # Filter only mobile.de-related messages
             if 'mobile.de' not in (msg.from_addr or '').lower() and 'mobile.de' not in body.lower():
                 # Skip non-mobile.de messages
+                print(f"DEBUG: Skipping non-mobile.de message {msg.uid}")
                 mark_message_seen(settings, msg.uid)
                 continue
 
             # Filter only mobile.de-related messages/URLs
             urls = extract_urls(body)
             mobile_urls = [u for u in urls if 'mobile.de' in u]
+            print(f"DEBUG: Found {len(mobile_urls)} mobile.de URLs in message {msg.uid}")
 
             if not mobile_urls:
                 # Fallback to old parsing if no URLs
+                print(f"DEBUG: No URLs found, using fallback parsing for {msg.uid}")
                 raw = {
                     'title': msg.subject or 'Car listing',
                     'price': None,
@@ -464,14 +470,17 @@ def process_user_inbox_once(user: User):
                 photos = [a['content'] for a in msg.attachments if a.get('filename') and a['filename'].lower().endswith(('.jpg', '.jpeg', '.png', '.gif'))][:10] if msg.attachments else []
                 text = generate_listing_text(raw, settings.language or 'uk', settings.price_markup_eur or 0, openai_key)
                 ok, err = send_car_post(settings, bot_token, text, photos)
+                print(f"DEBUG: Sent fallback post for {msg.uid}, success: {ok}, error: {err}")
                 log = PostingLog(user_id=user.id, gmail_message_id=msg.uid, subject=msg.subject, car_title=raw['title'], raw_price=str(raw.get('price')), final_price=str(settings.price_markup_eur or ''), sent_to_channel=bool(ok), sent_at=(datetime.utcnow() if ok else None), error=(err if not ok else None))
                 db.session.add(log)
                 db.session.commit()
             else:
                 # Process each mobile.de URL separately
                 for url in mobile_urls:
+                    print(f"DEBUG: Parsing URL {url} from message {msg.uid}")
                     listing = parse_listing_from_url(url)
                     if listing:
+                        print(f"DEBUG: Parsed listing: {listing['title']}")
                         raw = {
                             'title': listing['title'],
                             'price': listing.get('price'),
@@ -486,9 +495,12 @@ def process_user_inbox_once(user: User):
                         photos = listing['photos']
                         text = generate_listing_text(raw, settings.language or 'uk', settings.price_markup_eur or 0, openai_key)
                         ok, err = send_car_post(settings, bot_token, text, photos)
+                        print(f"DEBUG: Sent post for {url}, success: {ok}, error: {err}")
                         log = PostingLog(user_id=user.id, gmail_message_id=msg.uid, subject=msg.subject, car_title=raw['title'], raw_price=str(raw.get('price')), final_price=str(settings.price_markup_eur or ''), sent_to_channel=bool(ok), sent_at=(datetime.utcnow() if ok else None), error=(err if not ok else None))
                         db.session.add(log)
                         db.session.commit()
+                    else:
+                        print(f"DEBUG: Failed to parse listing from {url}")
             # mark seen
             mark_message_seen(settings, msg.uid)
         except Exception:

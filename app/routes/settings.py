@@ -126,7 +126,7 @@ def gmail_test_old():
             return redirect(url_for('settings.gmail'))
 
         # Reuse existing one-off processing which already uses parse_listing_from_url
-        process_user_inbox_once(current_user)
+        process_user_inbox_once(current_user, messages=msgs)
         flash('Tested processing of existing mobile.de messages. Check your Telegram channel and posting log.')
     except Exception as e:
         flash('Test of old mobile.de messages failed: ' + str(e))
