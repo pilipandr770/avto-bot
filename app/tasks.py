@@ -430,11 +430,6 @@ def process_user_inbox_once(user: User):
         if cid:
             db.session.add(settings)
             db.session.commit()
-            # Filter only mobile.de-related messages
-            if 'mobile.de' not in (msg.from_addr or '').lower() and 'mobile.de' not in body.lower():
-                # Skip non-mobile.de messages
-                mark_message_seen(settings, msg.uid)
-                continue
 
     except Exception:
         pass
