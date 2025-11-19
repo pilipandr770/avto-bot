@@ -57,6 +57,75 @@ def fetch_new_messages(user_settings) -> List[EmailMessageData]:
     return messages
 
 
+def fetch_recent_mobilede_message(user_settings) -> List[EmailMessageData]:
+    """Fetch recent messages that look like they are from mobile.de (for testing).
+
+    This searches the last 20 messages in INBOX and returns those where
+    either the From header contains 'mobile.de' or the body contains 'mobile.de'.
+    """
+    address = user_settings.gmail_address
+    password = user_settings.gmail_app_password_decrypted if hasattr(user_settings, 'gmail_app_password_decrypted') else None
+    if not address or not password:
+        return []
+
+    mail = _connect_imap(address, password)
+    mail.select('INBOX')
+
+    # Search all, then take the last 20 UIDs
+    typ, data = mail.search(None, 'ALL')
+    if typ != 'OK':
+        mail.close()
+        mail.logout()
+        return []
+
+    all_uids = data[0].split()
+    if not all_uids:
+        mail.close()
+        mail.logout()
+        return []
+
+    sample_uids = all_uids[-20:]
+    messages: List[EmailMessageData] = []
+
+    for num in sample_uids:
+        try:
+            typ, msg_data = mail.fetch(num, '(RFC822)')
+            if typ != 'OK':
+                continue
+            raw = msg_data[0][1]
+            msg = email.message_from_bytes(raw, policy=policy.default)
+            from_header = str(msg.get('from', '')).lower()
+            subject = str(msg.get('subject', ''))
+            text_body = ''
+            html_body = ''
+            attachments = []
+
+            for part in msg.walk():
+                ctype = part.get_content_type()
+                if part.is_multipart():
+                    continue
+                content_disposition = part.get_content_disposition()
+                payload = part.get_payload(decode=True)
+                if content_disposition == 'attachment' or (part.get_filename()):
+                    attachments.append({'filename': part.get_filename(), 'content': payload})
+                elif ctype == 'text/plain':
+                    if payload:
+                        text_body += payload.decode(errors='ignore')
+                elif ctype == 'text/html':
+                    if payload:
+                        html_body += payload.decode(errors='ignore')
+
+            body_combined = (text_body or '') + '\n' + (html_body or '')
+            if 'mobile.de' in from_header or 'mobile.de' in body_combined.lower():
+                messages.append(EmailMessageData(uid=num.decode(), subject=subject, text_body=text_body, html_body=html_body, attachments=attachments))
+        except Exception:
+            continue
+
+    mail.close()
+    mail.logout()
+    return messages
+
+
 def mark_message_seen(user_settings, uid: str):
     address = user_settings.gmail_address
     password = user_settings.gmail_app_password_decrypted if hasattr(user_settings, 'gmail_app_password_decrypted') else None

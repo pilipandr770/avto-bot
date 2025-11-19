@@ -4,7 +4,7 @@ from ..extensions import db
 from ..models import UserSettings, PostingLog
 from ..security import encrypt_secret, decrypt_secret
 from ..telegram_client import ensure_channel_id
-from ..gmail_client import _connect_imap
+from ..gmail_client import _connect_imap, fetch_recent_mobilede_message
 from ..extensions import scheduler
 import openai
 import json
@@ -78,6 +78,40 @@ def gmail_check():
         flash(f'Mailbox check completed — {added} new posting(s) created')
     except Exception as e:
         flash('Mailbox check failed: ' + str(e))
+    return redirect(url_for('settings.gmail'))
+
+
+@bp.route('/gmail/test_old', methods=['POST'])
+@login_required
+def gmail_test_old():
+    """Temporarily test processing of an existing mobile.de message.
+
+    This looks through recent messages for ones that look like they are from
+    mobile.de, runs the usual inbox processing once for the current user,
+    and reports how many new postings were created. Intended only for
+    manual testing and can be removed later.
+    """
+    from ..tasks import process_user_inbox_once
+
+    user_id = current_user.id
+    try:
+        # Ensure Gmail password is decrypted for client use, similar to task code
+        s = current_user.settings
+        if not s:
+            flash('No settings found for current user')
+            return redirect(url_for('settings.gmail'))
+
+        # Try to fetch at least one mobile.de-like message to confirm there is something to test
+        msgs = fetch_recent_mobilede_message(s)
+        if not msgs:
+            flash('No recent mobile.de-like messages found in your inbox')
+            return redirect(url_for('settings.gmail'))
+
+        # Reuse existing one-off processing which already uses parse_listing_from_url
+        process_user_inbox_once(current_user)
+        flash('Tested processing of existing mobile.de messages. Check your Telegram channel and posting log.')
+    except Exception as e:
+        flash('Test of old mobile.de messages failed: ' + str(e))
     return redirect(url_for('settings.gmail'))
 
 
