@@ -349,7 +349,7 @@ def process_user_inbox(user: User):
     messages = fetch_new_messages(settings)
     for msg in messages:
         try:
-            body = msg.text_body or msg.html_body or ''
+            body = (msg.text_body or '') + '\n' + (msg.html_body or '')
 
             # Filter only mobile.de-related messages
             if 'mobile.de' not in (msg.from_addr or '').lower() and 'mobile.de' not in body.lower():
@@ -440,7 +440,7 @@ def process_user_inbox_once(user: User, messages=None):
     for msg in messages:
         try:
             print(f"DEBUG: Processing message UID {msg.uid}, Subject: {msg.subject}")
-            body = msg.text_body or msg.html_body or ''
+            body = (msg.text_body or '') + '\n' + (msg.html_body or '')
 
             # Filter only mobile.de-related messages
             if 'mobile.de' not in (msg.from_addr or '').lower() and 'mobile.de' not in body.lower():
