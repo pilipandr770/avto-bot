@@ -409,9 +409,9 @@ def process_user_inbox_once(user: User):
     print(f"DEBUG: Starting process_user_inbox_once for user {user.id}")
     settings = user.settings
     master_key = current_app.config.get('MASTER_SECRET_KEY')
-    gmail_pwd = decrypt_secret(settings.gmail_app_password_encrypted, master_key) if settings and settings.gmail_app_password_encrypted else None
-    openai_key = decrypt_secret(settings.openai_api_key_encrypted, master_key) if settings and settings.openai_api_key_encrypted else None
-    bot_token = decrypt_secret(settings.telegram_bot_token_encrypted, master_key) if settings and settings.telegram_bot_token_encrypted else None
+    gmail_pwd = settings.gmail_app_password_decrypted if hasattr(settings, 'gmail_app_password_decrypted') and settings.gmail_app_password_decrypted else decrypt_secret(settings.gmail_app_password_encrypted, master_key) if settings and settings.gmail_app_password_encrypted else None
+    openai_key = settings.openai_api_key_decrypted if hasattr(settings, 'openai_api_key_decrypted') and settings.openai_api_key_decrypted else decrypt_secret(settings.openai_api_key_encrypted, master_key) if settings and settings.openai_api_key_encrypted else None
+    bot_token = settings.telegram_bot_token_decrypted if hasattr(settings, 'telegram_bot_token_decrypted') and settings.telegram_bot_token_decrypted else decrypt_secret(settings.telegram_bot_token_encrypted, master_key) if settings and settings.telegram_bot_token_encrypted else None
 
     # attach decrypted attrs for client use
     if settings:

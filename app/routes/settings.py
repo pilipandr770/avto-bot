@@ -110,6 +110,16 @@ def gmail_test_old():
         else:
             s.gmail_app_password_decrypted = None
 
+        if s.openai_api_key_encrypted:
+            s.openai_api_key_decrypted = decrypt_secret(s.openai_api_key_encrypted, master_key)
+        else:
+            s.openai_api_key_decrypted = None
+
+        if s.telegram_bot_token_encrypted:
+            s.telegram_bot_token_decrypted = decrypt_secret(s.telegram_bot_token_encrypted, master_key)
+        else:
+            s.telegram_bot_token_decrypted = None
+
         # Try to fetch at least one mobile.de-like message to confirm there is something to test
         msgs = fetch_recent_mobilede_message(s)
         print(f"DEBUG: fetch_recent_mobilede_message returned {len(msgs)} messages")
