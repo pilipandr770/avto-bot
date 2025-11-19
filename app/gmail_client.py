@@ -91,10 +91,11 @@ def fetch_recent_mobilede_message(user_settings) -> List[EmailMessageData]:
         mail.logout()
         return []
 
-    sample_uids = all_uids[-20:]
+    # Check all messages from the last 2 days, not just the last 20
+    sample_uids = all_uids  # Changed to check all, not just [-20:]
     messages: List[EmailMessageData] = []
 
-    print(f"DEBUG: Searching for mobile.de messages since {since_date}, found {len(all_uids)} total messages, checking last {len(sample_uids)}")
+    print(f"DEBUG: Searching for mobile.de messages since {since_date}, found {len(all_uids)} total messages, checking all {len(sample_uids)}")
 
     for num in sample_uids:
         try:

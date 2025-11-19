@@ -101,8 +101,10 @@ def gmail_test_old():
             flash('No settings found for current user')
             return redirect(url_for('settings.gmail'))
 
+        print(f"DEBUG: Starting test_old for user {user_id}")
         # Try to fetch at least one mobile.de-like message to confirm there is something to test
         msgs = fetch_recent_mobilede_message(s)
+        print(f"DEBUG: fetch_recent_mobilede_message returned {len(msgs)} messages")
         if not msgs:
             flash('No recent mobile.de-like messages found in your inbox')
             return redirect(url_for('settings.gmail'))
@@ -111,6 +113,7 @@ def gmail_test_old():
         process_user_inbox_once(current_user)
         flash('Tested processing of existing mobile.de messages. Check your Telegram channel and posting log.')
     except Exception as e:
+        print(f"DEBUG: Error in test_old: {e}")
         flash('Test of old mobile.de messages failed: ' + str(e))
     return redirect(url_for('settings.gmail'))
 
