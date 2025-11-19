@@ -1,6 +1,9 @@
 import json
 import requests
 from bs4 import BeautifulSoup
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
 
 
 def parse_mobile_de(url: str):
@@ -16,24 +19,30 @@ def parse_mobile_de(url: str):
     - up to 10 photos (bytes)
     """
 
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
-    }
+    print("DEBUG: Fetching URL with Selenium:", url)
+    options = Options()
+    options.add_argument('--headless')
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage')
+    options.add_argument('--disable-gpu')
+    options.add_argument('--window-size=1920,1080')
 
-    resp = requests.get(url, headers=headers, timeout=20)
-    if resp.status_code != 200:
-        return None
-
-    soup = BeautifulSoup(resp.text, "html.parser")
+    driver = webdriver.Chrome(options=options)
+    driver.get(url)
+    soup = BeautifulSoup(driver.page_source, "html.parser")
+    driver.quit()
 
     # load main React JSON
     script_tag = soup.find("script", id="__NEXT_DATA__", type="application/json")
+    print("DEBUG: Script tag found:", script_tag is not None)
     if not script_tag:
         return None
 
     try:
         data = json.loads(script_tag.string)
-    except:
+        print("DEBUG: JSON loaded, keys:", list(data.keys()))
+    except Exception as e:
+        print("DEBUG: JSON load failed:", e)
         return None
 
     try:
