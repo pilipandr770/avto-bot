@@ -6,9 +6,10 @@ from datetime import datetime, timedelta
 
 
 class EmailMessageData:
-    def __init__(self, uid, subject, text_body, html_body, attachments):
+    def __init__(self, uid, subject, from_addr, text_body, html_body, attachments):
         self.uid = uid
         self.subject = subject
+        self.from_addr = from_addr
         self.text_body = text_body
         self.html_body = html_body
         self.attachments = attachments
@@ -34,6 +35,7 @@ def fetch_new_messages(user_settings) -> List[EmailMessageData]:
         typ, msg_data = mail.fetch(num, '(RFC822)')
         raw = msg_data[0][1]
         msg = email.message_from_bytes(raw, policy=policy.default)
+        from_header = str(msg.get('from', ''))
         subject = str(msg.get('subject', ''))
         text_body = ''
         html_body = ''
@@ -51,7 +53,7 @@ def fetch_new_messages(user_settings) -> List[EmailMessageData]:
             elif ctype == 'text/html':
                 html_body += payload.decode(errors='ignore')
 
-        messages.append(EmailMessageData(uid=num.decode(), subject=subject, text_body=text_body, html_body=html_body, attachments=attachments))
+        messages.append(EmailMessageData(uid=num.decode(), subject=subject, from_addr=from_header, text_body=text_body, html_body=html_body, attachments=attachments))
 
     mail.close()
     mail.logout()
@@ -138,7 +140,7 @@ def fetch_recent_mobilede_message(user_settings) -> List[EmailMessageData]:
             body_combined = (text_body or '') + '\n' + (html_body or '')
             if 'mobile.de' in from_header or 'mobile.de' in body_combined.lower():
                 print(f"DEBUG: Found mobile.de message: UID={num.decode()}, From={from_header}, Subject={subject}")
-                messages.append(EmailMessageData(uid=num.decode(), subject=subject, text_body=text_body, html_body=html_body, attachments=attachments))
+                messages.append(EmailMessageData(uid=num.decode(), subject=subject, from_addr=from_header, text_body=text_body, html_body=html_body, attachments=attachments))
             else:
                 print(f"DEBUG: Message UID {num} does not match filter")
         except Exception as e:
