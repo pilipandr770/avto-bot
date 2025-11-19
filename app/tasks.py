@@ -13,8 +13,11 @@ from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
 from webdriver_manager.chrome import ChromeDriverManager
 import time
+import json
+import codecs
 
 
 def extract_urls(text):
@@ -24,66 +27,298 @@ def extract_urls(text):
 
 
 def parse_listing_from_url(url):
-    """Parse car listing from URL: extract title, description, photos."""
+    """Parse car listing from URL: extract title, description, photos, price, technical details."""
     try:
         # Set up Chrome options
         options = Options()
-        options.add_argument('--headless')  # Run in headless mode
+        options.add_argument('--headless')
         options.add_argument('--no-sandbox')
         options.add_argument('--disable-dev-shm-usage')
         options.add_argument('--disable-gpu')
         options.add_argument('--window-size=1920,1080')
         options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36')
 
-        # Initialize the driver
         driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
         driver.get(url)
-        
-        # Wait for the page to load
-        time.sleep(3)  # Adjust as needed
-        
-        # Get the page source
-        soup = BeautifulSoup(driver.page_source, 'html.parser')
-        
-        # Extract title
-        title = soup.find('title').get_text().strip() if soup.find('title') else 'Car listing'
-        
-        # Extract description
-        description = ''
-        desc_divs = soup.find_all(['div', 'p'], class_=lambda c: c and ('description' in c.lower() or 'text' in c.lower() or 'desc' in c.lower()))
-        if desc_divs:
-            description = ' '.join([d.get_text().strip() for d in desc_divs])
+
+        time.sleep(5)
+        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        time.sleep(2)
+
+        page_source = driver.page_source
+        # TEMP: dump full HTML for debugging selectors (price/mileage, etc.)
+        try:
+            with open('debug_listing.html', 'w', encoding='utf-8') as f:
+                f.write(page_source)
+        except Exception as dump_err:
+            print(f"Failed to write debug_listing.html: {dump_err}")
+
+        soup = BeautifulSoup(page_source, 'html.parser')
+
+        # Title and subtitle
+        title_el = soup.select_one('[data-testid="main-cta-box"] h2')
+        subtitle_el = soup.select_one('.MainCtaBox_subTitle__wYybO')
+        if title_el:
+            base_title = title_el.get_text(strip=True)
+            subtitle = subtitle_el.get_text(strip=True) if subtitle_el else ''
+            title = f"{base_title} {subtitle}".strip()
         else:
-            # Fallback
-            description = soup.get_text().strip()
-        
-        # Extract photos
-        photos = []
-        for img in soup.find_all('img'):
-            src = img.get('src') or img.get('data-src') or img.get('data-lazy-src')
-            print(f"Found img src: {src}")
-            if src and src.startswith('https://img.classistatic.de/'):  # Specific to mobile.de images
+            title = soup.find('title').get_text(strip=True) if soup.find('title') else 'Car listing'
+
+        # Price: universal search for text with '€', then HTML fallbacks
+        price_text = None
+        try:
+            # First, try any element containing the currency sign
+            price_elem = driver.find_element(By.XPATH, "//*[contains(text(), '€')]")
+            price_text = price_elem.text.strip()
+        except Exception:
+            price_text = None
+
+        # Fallbacks via parsed HTML if Selenium lookup fails
+        if not price_text:
+            price_el = soup.select_one('[data-testid="main-price-area"] .MainPriceArea_mainPrice__xCkfs')
+            if price_el:
+                price_text = price_el.get_text(strip=True)
+        if not price_text:
+            sticky_price_el = soup.select_one('[data-testid="sticky-cta-img"] p.typography_title__TamOM')
+            if sticky_price_el:
+                price_text = sticky_price_el.get_text(strip=True)
+        if not price_text:
+            cta_price_el = soup.select_one('.MainCtaBox_content__AXZbK .typography_headlineLarge__jywu0')
+            if cta_price_el:
+                price_text = cta_price_el.get_text(strip=True)
+
+        # As a last resort, search raw HTML text for a pattern like "2999 €"
+        if not price_text:
+            m_raw = re.search(r"\d[\d\s]*€", page_source)
+            if m_raw:
+                price_text = m_raw.group(0).strip()
+
+        price = None
+        if price_text:
+            m = re.search(r"(\d[\d\s]*)", price_text)
+            if m:
                 try:
-                    img_response = requests.get(src, timeout=10)
-                    print(f"Status code: {img_response.status_code}, Content-Type: {img_response.headers.get('content-type')}")
-                    if img_response.status_code == 200 and 'image' in img_response.headers.get('content-type', ''):
-                        photos.append(img_response.content)
-                        print(f"Downloaded photo: {src}")
-                except Exception as e:
-                    print(f"Error downloading {src}: {e}")
-                if len(photos) >= 10:
-                    break
-        
+                    price = int(m.group(1).replace(' ', ''))
+                except ValueError:
+                    price = None
+
+        # Key features (mileage, fuel, gearbox, first registration)
+        def get_key_feature_value(testid):
+            container = soup.select_one(f'[data-testid="{testid}"] .KeyFeatures_value__8LVNc')
+            return container.get_text(strip=True) if container else None
+
+        mileage_text = get_key_feature_value('vip-key-features-list-item-mileage')
+        fuel = get_key_feature_value('vip-key-features-list-item-fuel')
+        gearbox = get_key_feature_value('vip-key-features-list-item-transmission')
+        first_reg_text = get_key_feature_value('vip-key-features-list-item-firstRegistration')
+
+        mileage = None
+        if mileage_text:
+            m = re.search(r"(\d[\d\s]*)", mileage_text)
+            if m:
+                try:
+                    mileage = int(m.group(1).replace(' ', ''))
+                except ValueError:
+                    mileage = None
+
+        # Technical data box: collect all specs and also fallback mileage/year
+        specs = {}
+        tech_box = soup.select_one('[data-testid="vip-technical-data-box"]')
+        if tech_box:
+            # Prefer structured dt/dd pairs when available
+            dts = tech_box.select('dt')
+            for dt in dts:
+                key = dt.get_text(strip=True)
+                dd = dt.find_next_sibling('dd')
+                if not dd:
+                    continue
+                value = dd.get_text(" ", strip=True)
+                if key and value:
+                    specs[key] = value
+
+            # Helper to get dd text by dt data-testid for known keys
+            def get_tech_value(testid):
+                dt = tech_box.select_one(f'dt[data-testid="{testid}"]')
+                if dt:
+                    dd = dt.find_next_sibling('dd')
+                    if dd:
+                        return dd.get_text(strip=True)
+                return None
+
+            if mileage is None:
+                mileage_text2 = get_tech_value('mileage-item')
+                if mileage_text2:
+                    m2 = re.search(r"(\d[\d\s]*)", mileage_text2)
+                    if m2:
+                        try:
+                            mileage = int(m2.group(1).replace(' ', ''))
+                        except ValueError:
+                            mileage = None
+
+            if not first_reg_text:
+                first_reg_text = get_tech_value('firstRegistration-item')
+
+        # If specs still empty, try heading-based Russian "Технические сведения" block
+        if not specs:
+            heading = soup.find('h3', string=lambda t: t and 'Технические сведения' in t)
+            if heading:
+                container = heading.find_next('div')
+                if container:
+                    lines = container.get_text("\n", strip=True).split("\n")
+                    for line in lines:
+                        if not line.strip():
+                            continue
+                        if ':' in line:
+                            k, v = line.split(':', 1)
+                            specs[k.strip()] = v.strip()
+                        else:
+                            parts = line.split()
+                            if len(parts) > 1:
+                                k = parts[0]
+                                v = " ".join(parts[1:])
+                                specs[k.strip()] = v.strip()
+
+        # Fallback mileage from specs (e.g. 'Пробег': '171 278 км')
+        if mileage is None and specs.get('Пробег'):
+            m = re.search(r"(\d[\d\s]*)", specs['Пробег'])
+            if m:
+                try:
+                    mileage = int(m.group(1).replace(' ', ''))
+                except ValueError:
+                    mileage = None
+
+        year = None
+        if first_reg_text:
+            m = re.search(r"(\d{4})", first_reg_text)
+            if m:
+                try:
+                    year = int(m.group(1))
+                except ValueError:
+                    year = None
+
+        # Description
+        desc_el = soup.select_one('[data-testid="vip-vehicle-description-text"]')
+        description = desc_el.get_text("\n", strip=True) if desc_el else ''
+
+        # Photos from gallery (download bytes) and also collect URLs
+        photos = []
+        photo_urls = []
+
+        # Prefer gallery images by class, fallback to data-testid
+        img_elements = soup.select('img.GalleryImage__image')
+        if not img_elements:
+            img_elements = soup.select('[data-testid^="image-"] img')
+
+        for img in img_elements[:10]:
+            src = img.get('src') or img.get('data-src') or ''
+            if not src:
+                continue
+            photo_urls.append(src)
+            try:
+                resp = requests.get(src, timeout=10)
+                if resp.status_code == 200 and 'image' in (resp.headers.get('content-type') or ''):
+                    photos.append(resp.content)
+            except Exception as e:
+                print(f"Error downloading image {src}: {e}")
+
         driver.quit()
-        
+
         return {
             'title': title,
             'description': description,
-            'photos': photos
+            'price': price,
+            'mileage': mileage,
+            'year': year,
+            'fuel': fuel,
+            'gearbox': gearbox,
+            'photos': photos,
+            'photo_urls': photo_urls,
+            'specs': specs,
         }
     except Exception as e:
-        print(f"Error parsing {url}: {e}")
-        return None
+        # Soft mode: try to fall back to plain requests + BeautifulSoup
+        print(f"Error parsing with Selenium for {url}: {e}")
+        try:
+            resp = requests.get(url, timeout=20, headers={
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            })
+            if resp.status_code != 200:
+                return None
+
+            html = resp.text
+            soup = BeautifulSoup(html, 'html.parser')
+
+            # Basic title / description
+            title_el = soup.find('h1') or soup.find('h2') or soup.find('title')
+            title = title_el.get_text(strip=True) if title_el else 'Car listing'
+
+            desc_el = soup.select_one('[data-testid="vip-vehicle-description-text"]')
+            description = desc_el.get_text("\n", strip=True) if desc_el else ''
+
+            # Soft price: search for pattern like "2999 €" in text
+            price = None
+            m_raw = re.search(r"\d[\d\s]*€", html)
+            if m_raw:
+                price_text = m_raw.group(0)
+                m_num = re.search(r"(\d[\d\s]*)", price_text)
+                if m_num:
+                    try:
+                        price = int(m_num.group(1).replace(' ', ''))
+                    except ValueError:
+                        price = None
+
+            # Minimal specs via technical data box, if present
+            specs = {}
+            tech_box = soup.select_one('[data-testid="vip-technical-data-box"]')
+            if tech_box:
+                dts = tech_box.select('dt')
+                for dt in dts:
+                    key = dt.get_text(strip=True)
+                    dd = dt.find_next_sibling('dd')
+                    if not dd:
+                        continue
+                    value = dd.get_text(" ", strip=True)
+                    if key and value:
+                        specs[key] = value
+
+            mileage = None
+            if specs.get('Пробег'):
+                m = re.search(r"(\d[\d\s]*)", specs['Пробег'])
+                if m:
+                    try:
+                        mileage = int(m.group(1).replace(' ', ''))
+                    except ValueError:
+                        mileage = None
+
+            year = None
+            if specs.get('Первая регистрация'):
+                m = re.search(r"(\d{4})", specs['Первая регистрация'])
+                if m:
+                    try:
+                        year = int(m.group(1))
+                    except ValueError:
+                        year = None
+
+            # In soft mode we skip image downloads to avoid extra load
+            photos = []
+            photo_urls = []
+
+            return {
+                'title': title,
+                'description': description,
+                'price': price,
+                'mileage': mileage,
+                'year': year,
+                'fuel': None,
+                'gearbox': None,
+                'photos': photos,
+                'photo_urls': photo_urls,
+                'specs': specs,
+            }
+        except Exception as e2:
+            print(f"Soft fallback also failed for {url}: {e2}")
+            return None
 
 
 def process_user_inbox(user: User):
@@ -115,8 +350,12 @@ def process_user_inbox(user: User):
     for msg in messages:
         try:
             body = msg.text_body or msg.html_body or ''
+
+            # Filter only mobile.de-related messages/URLs
             urls = extract_urls(body)
-            if not urls:
+            mobile_urls = [u for u in urls if 'mobile.de' in u]
+
+            if not mobile_urls:
                 # Fallback to old parsing if no URLs
                 raw = {
                     'title': msg.subject or 'Car listing',
@@ -135,19 +374,20 @@ def process_user_inbox(user: User):
                 db.session.add(log)
                 db.session.commit()
             else:
-                # Process each URL
-                for url in urls:
+                # Process each mobile.de URL separately
+                for url in mobile_urls:
                     listing = parse_listing_from_url(url)
                     if listing:
                         raw = {
                             'title': listing['title'],
-                            'price': None,
-                            'mileage': None,
-                            'year': None,
-                            'fuel': None,
-                            'gearbox': None,
+                            'price': listing.get('price'),
+                            'mileage': listing.get('mileage'),
+                            'year': listing.get('year'),
+                            'fuel': listing.get('fuel'),
+                            'gearbox': listing.get('gearbox'),
                             'description': listing['description'],
-                            'url': url
+                            'url': url,
+                            'specs': listing.get('specs') or {}
                         }
                         photos = listing['photos']
                         text = generate_listing_text(raw, settings.language or 'uk', settings.price_markup_eur or 0, openai_key)
@@ -191,8 +431,12 @@ def process_user_inbox_once(user: User):
     for msg in messages:
         try:
             body = msg.text_body or msg.html_body or ''
+
+            # Filter only mobile.de-related messages/URLs
             urls = extract_urls(body)
-            if not urls:
+            mobile_urls = [u for u in urls if 'mobile.de' in u]
+
+            if not mobile_urls:
                 # Fallback to old parsing if no URLs
                 raw = {
                     'title': msg.subject or 'Car listing',
@@ -211,19 +455,20 @@ def process_user_inbox_once(user: User):
                 db.session.add(log)
                 db.session.commit()
             else:
-                # Process each URL
-                for url in urls:
+                # Process each mobile.de URL separately
+                for url in mobile_urls:
                     listing = parse_listing_from_url(url)
                     if listing:
                         raw = {
                             'title': listing['title'],
-                            'price': None,
-                            'mileage': None,
-                            'year': None,
-                            'fuel': None,
-                            'gearbox': None,
+                            'price': listing.get('price'),
+                            'mileage': listing.get('mileage'),
+                            'year': listing.get('year'),
+                            'fuel': listing.get('fuel'),
+                            'gearbox': listing.get('gearbox'),
                             'description': listing['description'],
-                            'url': url
+                            'url': url,
+                            'specs': listing.get('specs') or {}
                         }
                         photos = listing['photos']
                         text = generate_listing_text(raw, settings.language or 'uk', settings.price_markup_eur or 0, openai_key)
