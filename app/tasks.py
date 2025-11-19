@@ -351,6 +351,12 @@ def process_user_inbox(user: User):
         try:
             body = msg.text_body or msg.html_body or ''
 
+            # Filter only mobile.de-related messages
+            if 'mobile.de' not in (msg.from_addr or '').lower() and 'mobile.de' not in body.lower():
+                # Skip non-mobile.de messages
+                mark_message_seen(settings, msg.uid)
+                continue
+
             # Filter only mobile.de-related messages/URLs
             urls = extract_urls(body)
             mobile_urls = [u for u in urls if 'mobile.de' in u]
@@ -424,6 +430,12 @@ def process_user_inbox_once(user: User):
         if cid:
             db.session.add(settings)
             db.session.commit()
+            # Filter only mobile.de-related messages
+            if 'mobile.de' not in (msg.from_addr or '').lower() and 'mobile.de' not in body.lower():
+                # Skip non-mobile.de messages
+                mark_message_seen(settings, msg.uid)
+                continue
+
     except Exception:
         pass
 
@@ -431,6 +443,12 @@ def process_user_inbox_once(user: User):
     for msg in messages:
         try:
             body = msg.text_body or msg.html_body or ''
+
+            # Filter only mobile.de-related messages
+            if 'mobile.de' not in (msg.from_addr or '').lower() and 'mobile.de' not in body.lower():
+                # Skip non-mobile.de messages
+                mark_message_seen(settings, msg.uid)
+                continue
 
             # Filter only mobile.de-related messages/URLs
             urls = extract_urls(body)
