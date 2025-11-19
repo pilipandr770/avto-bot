@@ -81,6 +81,58 @@ def gmail_check():
     return redirect(url_for('settings.gmail'))
 
 
+@bp.route('/gmail/test_old', methods=['POST'])
+@login_required
+def gmail_test_old():
+    """Temporarily test processing of an existing mobile.de message.
+
+    This looks through recent messages for ones that look like they are from
+    mobile.de, runs the usual inbox processing once for the current user,
+    and reports how many new postings were created. Intended only for
+    manual testing and can be removed later.
+    """
+    from ..tasks import process_user_inbox_once
+
+    user_id = current_user.id
+    try:
+        # Ensure Gmail password is decrypted for client use, similar to task code
+        s = current_user.settings
+        if not s:
+            flash('No settings found for current user')
+            return redirect(url_for('settings.gmail'))
+
+        # Decrypt password if needed
+        from app.security import decrypt_secret
+        master_key = current_app.config.get('MASTER_SECRET_KEY')
+        if s.gmail_app_password_encrypted:
+            s.gmail_app_password_decrypted = decrypt_secret(s.gmail_app_password_encrypted, master_key)
+        else:
+            s.gmail_app_password_decrypted = None
+
+        if s.openai_api_key_encrypted:
+            s.openai_api_key_decrypted = decrypt_secret(s.openai_api_key_encrypted, master_key)
+        else:
+            s.openai_api_key_decrypted = None
+
+        if s.telegram_bot_token_encrypted:
+            s.telegram_bot_token_decrypted = decrypt_secret(s.telegram_bot_token_encrypted, master_key)
+        else:
+            s.telegram_bot_token_decrypted = None
+
+        # Try to fetch at least one mobile.de-like message to confirm there is something to test
+        msgs = fetch_recent_mobilede_message(s)
+        if not msgs:
+            flash('No recent mobile.de-like messages found in your inbox')
+            return redirect(url_for('settings.gmail'))
+
+        # Reuse existing one-off processing which already uses parse_listing_from_url
+        process_user_inbox_once(current_user)
+        flash('Tested processing of existing mobile.de messages. Check your Telegram channel and posting log.')
+    except Exception as e:
+        flash('Test of old mobile.de messages failed: ' + str(e))
+    return redirect(url_for('settings.gmail'))
+
+
 @bp.route('/gmail/help')
 @login_required
 def gmail_help():
