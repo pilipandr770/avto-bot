@@ -2,6 +2,7 @@ import imaplib
 import email
 from email import policy
 from typing import List
+from datetime import datetime, timedelta
 
 
 class EmailMessageData:
@@ -58,11 +59,13 @@ def fetch_new_messages(user_settings) -> List[EmailMessageData]:
 
 
 def fetch_recent_mobilede_message(user_settings) -> List[EmailMessageData]:
-    """Fetch recent messages that look like they are from mobile.de (for testing).
+        """Fetch recent messages (last 2 days) that look like they are from mobile.de.
 
-    This searches the last 20 messages in INBOX and returns those where
-    either the From header contains 'mobile.de' or the body contains 'mobile.de'.
-    """
+        Used only for manual testing from the settings UI. It considers both
+        read and unread messages and filters by:
+            - From header containing 'mobile.de', or
+            - message body containing 'mobile.de'.
+        """
     address = user_settings.gmail_address
     password = user_settings.gmail_app_password_decrypted if hasattr(user_settings, 'gmail_app_password_decrypted') else None
     if not address or not password:
@@ -71,8 +74,11 @@ def fetch_recent_mobilede_message(user_settings) -> List[EmailMessageData]:
     mail = _connect_imap(address, password)
     mail.select('INBOX')
 
-    # Search all, then take the last 20 UIDs
-    typ, data = mail.search(None, 'ALL')
+    # Compute date 2 days ago for IMAP SINCE filter (format: 19-Nov-2025)
+    since_date = (datetime.utcnow() - timedelta(days=2)).strftime('%d-%b-%Y')
+
+    # Search messages since that date (both read and unread)
+    typ, data = mail.search(None, '(SINCE "' + since_date + '")')
     if typ != 'OK':
         mail.close()
         mail.logout()
