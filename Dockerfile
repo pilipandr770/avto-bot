@@ -24,4 +24,4 @@ COPY . .
 EXPOSE 10000
 
 # Run with Gunicorn
-CMD ["gunicorn", "wsgi:app", "--bind", "0.0.0.0:10000"]
+CMD ["gunicorn", "--timeout", "300", "app:app"]
