@@ -28,7 +28,17 @@ def parse_mobile_de(url: str):
     options.add_argument('--window-size=1920,1080')
 
     driver = webdriver.Chrome(options=options)
-    driver.get(url)
+    driver.set_page_load_timeout(30)  # 30 seconds timeout
+    try:
+        driver.get(url)
+    except Exception as e:
+        print("DEBUG: Page load failed:", e)
+        driver.quit()
+        return None
+    if '/auto-inserat/' not in driver.current_url:
+        print("DEBUG: URL did not redirect to listing page, skipping")
+        driver.quit()
+        return None
     soup = BeautifulSoup(driver.page_source, "html.parser")
     driver.quit()
 
