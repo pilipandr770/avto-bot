@@ -102,6 +102,14 @@ def gmail_test_old():
             return redirect(url_for('settings.gmail'))
 
         print(f"DEBUG: Starting test_old for user {user_id}")
+        # Decrypt password if needed
+        from app.security import decrypt_secret
+        master_key = current_app.config.get('MASTER_SECRET_KEY')
+        if s.gmail_app_password_encrypted:
+            s.gmail_app_password_decrypted = decrypt_secret(s.gmail_app_password_encrypted, master_key)
+        else:
+            s.gmail_app_password_decrypted = None
+
         # Try to fetch at least one mobile.de-like message to confirm there is something to test
         msgs = fetch_recent_mobilede_message(s)
         print(f"DEBUG: fetch_recent_mobilede_message returned {len(msgs)} messages")
