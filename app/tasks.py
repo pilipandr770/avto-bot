@@ -17,9 +17,23 @@ import codecs
 
 
 def extract_urls(text):
-    """Extract URLs from text."""
-    url_pattern = r'https?://[^\s]+'
-    return re.findall(url_pattern, text)
+    """Extract URLs from text and HTML."""
+    urls = set()
+    # Regex for plain text URLs
+    url_pattern = r'https?://[^\s<>"\']+'
+    urls.update(re.findall(url_pattern, text))
+
+    # Parse HTML for href attributes
+    try:
+        soup = BeautifulSoup(text, 'html.parser')
+        for a in soup.find_all('a', href=True):
+            href = a['href']
+            if href.startswith('http'):
+                urls.add(href)
+    except:
+        pass
+
+    return list(urls)
 
 
 def process_user_inbox(user: User):
