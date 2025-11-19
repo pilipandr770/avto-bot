@@ -29,6 +29,15 @@ def extract_urls(text):
 def parse_listing_from_url(url):
     """Parse car listing from URL: extract title, description, photos, price, technical details."""
     try:
+        # Follow redirects to get the final URL
+        resp = requests.get(url, timeout=10, allow_redirects=True)
+        final_url = resp.url
+        print(f"DEBUG: Original URL: {url}, Final URL: {final_url}")
+    except Exception as e:
+        print(f"Error following redirects for {url}: {e}")
+        final_url = url
+
+    try:
         # Set up Chrome options
         options = Options()
         options.add_argument('--headless')
@@ -43,11 +52,11 @@ def parse_listing_from_url(url):
         options.binary_location = "/usr/bin/chromium-browser"
 
         driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
-        driver.get(url)
+        driver.get(final_url)
 
-        time.sleep(5)
+        time.sleep(10)  # Increased wait time for page to load
         driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-        time.sleep(2)
+        time.sleep(3)
 
         page_source = driver.page_source
         # TEMP: dump full HTML for debugging selectors (price/mileage, etc.)
@@ -246,7 +255,7 @@ def parse_listing_from_url(url):
         # Soft mode: try to fall back to plain requests + BeautifulSoup
         print(f"Error parsing with Selenium for {url}: {e}")
         try:
-            resp = requests.get(url, timeout=20, headers={
+            resp = requests.get(final_url, timeout=20, headers={
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
             })
             if resp.status_code != 200:
