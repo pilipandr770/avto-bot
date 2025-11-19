@@ -67,25 +67,33 @@ def fetch_recent_mobilede_message(user_settings) -> List[EmailMessageData]:
       - From header containing 'mobile.de', or
       - message body containing 'mobile.de'.
     """
+    print("DEBUG: Starting fetch_recent_mobilede_message")
     address = user_settings.gmail_address
     password = user_settings.gmail_app_password_decrypted if hasattr(user_settings, 'gmail_app_password_decrypted') else None
     if not address or not password:
+        print("DEBUG: No address or password")
         return []
 
+    print(f"DEBUG: Connecting to IMAP for {address}")
     mail = _connect_imap(address, password)
     mail.select('INBOX')
+    print("DEBUG: Selected INBOX")
 
     # Compute date 2 days ago for IMAP SINCE filter (format: 19-Nov-2025)
     since_date = (datetime.utcnow() - timedelta(days=2)).strftime('%d-%b-%Y')
+    print(f"DEBUG: SINCE date: {since_date}")
 
     # Search messages since that date (both read and unread)
     typ, data = mail.search(None, '(SINCE "' + since_date + '")')
+    print(f"DEBUG: Search result type: {typ}, data: {data}")
     if typ != 'OK':
+        print("DEBUG: Search failed")
         mail.close()
         mail.logout()
         return []
 
     all_uids = data[0].split()
+    print(f"DEBUG: Found {len(all_uids)} UIDs")
     if not all_uids:
         mail.close()
         mail.logout()
@@ -101,11 +109,13 @@ def fetch_recent_mobilede_message(user_settings) -> List[EmailMessageData]:
         try:
             typ, msg_data = mail.fetch(num, '(RFC822)')
             if typ != 'OK':
+                print(f"DEBUG: Fetch failed for UID {num}")
                 continue
             raw = msg_data[0][1]
             msg = email.message_from_bytes(raw, policy=policy.default)
             from_header = str(msg.get('from', '')).lower()
             subject = str(msg.get('subject', ''))
+            print(f"DEBUG: Checking message UID {num}, From: {from_header}, Subject: {subject}")
             text_body = ''
             html_body = ''
             attachments = []
@@ -129,6 +139,8 @@ def fetch_recent_mobilede_message(user_settings) -> List[EmailMessageData]:
             if 'mobile.de' in from_header or 'mobile.de' in body_combined.lower():
                 print(f"DEBUG: Found mobile.de message: UID={num.decode()}, From={from_header}, Subject={subject}")
                 messages.append(EmailMessageData(uid=num.decode(), subject=subject, text_body=text_body, html_body=html_body, attachments=attachments))
+            else:
+                print(f"DEBUG: Message UID {num} does not match filter")
         except Exception as e:
             print(f"DEBUG: Error processing message {num}: {e}")
             continue
