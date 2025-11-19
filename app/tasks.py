@@ -406,6 +406,7 @@ def process_user_inbox(user: User):
 
 def process_user_inbox_once(user: User):
     """Process inbox for a user once regardless of their auto_post_enabled flag (used for manual checks)."""
+    print(f"DEBUG: Starting process_user_inbox_once for user {user.id}")
     settings = user.settings
     master_key = current_app.config.get('MASTER_SECRET_KEY')
     gmail_pwd = decrypt_secret(settings.gmail_app_password_encrypted, master_key) if settings and settings.gmail_app_password_encrypted else None
@@ -417,6 +418,7 @@ def process_user_inbox_once(user: User):
         settings.gmail_app_password_decrypted = gmail_pwd
 
     if not (settings and settings.gmail_address and gmail_pwd and openai_key and bot_token and settings.telegram_channel_username):
+        print("DEBUG: Missing settings or credentials")
         return
 
     try:
@@ -428,15 +430,19 @@ def process_user_inbox_once(user: User):
         pass
 
     messages = fetch_new_messages(settings)
+    print(f"DEBUG: Fetched {len(messages)} new messages")
     for msg in messages:
         try:
+            print(f"DEBUG: Processing message UID {msg.uid}: {msg.subject}")
             body = msg.text_body or msg.html_body or ''
 
             # Filter only mobile.de-related messages/URLs
             urls = extract_urls(body)
             mobile_urls = [u for u in urls if 'mobile.de' in u]
+            print(f"DEBUG: Found {len(mobile_urls)} mobile.de URLs in message {msg.uid}")
 
             if not mobile_urls:
+                print(f"DEBUG: No mobile.de URLs, using fallback for message {msg.uid}")
                 # Fallback to old parsing if no URLs
                 raw = {
                     'title': msg.subject or 'Car listing',
@@ -483,6 +489,7 @@ def process_user_inbox_once(user: User):
             log = PostingLog(user_id=user.id, gmail_message_id=getattr(msg, 'uid', None), subject=getattr(msg, 'subject', None), error=traceback.format_exc())
             db.session.add(log)
             db.session.commit()
+    print(f"DEBUG: Finished process_user_inbox_once for user {user.id}")
 
 
 def check_all_inboxes(app=None):

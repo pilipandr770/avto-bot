@@ -119,6 +119,7 @@ def gmail_test_old():
 
         # Reuse existing one-off processing which already uses parse_listing_from_url
         process_user_inbox_once(current_user)
+        print("DEBUG: Finished calling process_user_inbox_once in test_old")
         flash('Tested processing of existing mobile.de messages. Check your Telegram channel and posting log.')
     except Exception as e:
         print(f"DEBUG: Error in test_old: {e}")
