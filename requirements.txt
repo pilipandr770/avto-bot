@@ -11,3 +11,5 @@ APScheduler
 gunicorn
 requests
 beautifulsoup4
+selenium
+webdriver-manager

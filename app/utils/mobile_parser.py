@@ -3,6 +3,11 @@
 import json
 import requests
 from bs4 import BeautifulSoup
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from webdriver_manager.chrome import ChromeDriverManager
+import time
 
 
 HEADERS = {
@@ -14,10 +19,11 @@ HEADERS = {
 
 def parse_mobile_de(url: str):
     """
-    Парсер сторінки оголошення mobile.de без Selenium.
+    Парсер сторінки оголошення mobile.de з Selenium.
 
     Робить:
-    - завантажує HTML сторінки оголошення;
+    - завантажує сторінку в headless Chrome;
+    - чекає на завантаження;
     - знаходить JSON у <script id="__NEXT_DATA__" type="application/json">;
     - дістає з нього:
         * title
@@ -35,22 +41,36 @@ def parse_mobile_de(url: str):
     """
 
     print(f"DEBUG: parse_mobile_de() fetching {url}")
+    options = Options()
+    options.add_argument('--headless')
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage')
+    options.add_argument('--disable-gpu')
+    options.add_argument('--window-size=1920,1080')
+    options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36')
+
     try:
-        resp = requests.get(url, headers=HEADERS, timeout=20)
+        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+        driver.get(url)
+        time.sleep(10)  # Wait for JS to load
+        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        time.sleep(2)
+        page_source = driver.page_source
+        driver.quit()
     except Exception as e:
-        print("DEBUG: request failed:", e)
+        print("DEBUG: Selenium failed:", e)
         return None
 
-    if resp.status_code != 200:
-        print("DEBUG: bad status code:", resp.status_code)
-        return None
-
-    soup = BeautifulSoup(resp.text, "html.parser")
+    soup = BeautifulSoup(page_source, "html.parser")
 
     # ---- JSON із даними оголошення ----
-    script_tag = soup.find("script", id="__NEXT_DATA__", type="application/json")
+    script_tag = soup.find("script", type="application/json")
     if not script_tag:
-        print("DEBUG: __NEXT_DATA__ not found")
+        print("DEBUG: application/json script not found")
+        return None
+    script_tag = soup.find("script", type="application/json")
+    if not script_tag:
+        print("DEBUG: application/json script not found")
         return None
 
     try:
