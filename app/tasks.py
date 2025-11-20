@@ -74,7 +74,7 @@ def process_user_inbox(user: User):
 
             # Filter only mobile.de-related messages/URLs
             urls = extract_urls(body)
-            mobile_urls = list(set([u for u in urls if 'mobile.de' in u and ('/auto-inserat/' in u or 'click.news.mobile.de' in u) and not any(ext in u.lower() for ext in ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.webp'])]))
+            mobile_urls = list(set([u for u in urls if 'mobile.de' in u and not any(ext in u.lower() for ext in ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.webp'])]))
 
             if not mobile_urls:
                 # Fallback to old parsing if no URLs
@@ -168,7 +168,7 @@ def process_user_inbox_once(user: User, messages=None):
 
             # Filter only mobile.de-related messages/URLs
             urls = extract_urls(body)
-            mobile_urls = list(set([u for u in urls if 'mobile.de' in u and ('/auto-inserat/' in u or 'click.news.mobile.de' in u) and not any(ext in u.lower() for ext in ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.webp'])]))
+            mobile_urls = list(set([u for u in urls if 'mobile.de' in u and not any(ext in u.lower() for ext in ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.webp'])]))
             print(f"DEBUG: Found {len(mobile_urls)} mobile.de URLs in message {msg.uid}")
 
             if not mobile_urls:

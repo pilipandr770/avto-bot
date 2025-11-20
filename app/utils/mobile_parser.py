@@ -1,78 +1,91 @@
+# app/utils/mobile_parser.py
+
 import json
 import requests
 from bs4 import BeautifulSoup
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
+
+
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                  "AppleWebKit/537.36 (KHTML, like Gecko) "
+                  "Chrome/123.0.0.0 Safari/537.36"
+}
 
 
 def parse_mobile_de(url: str):
-    """Parse mobile.de listing via JSON (__NEXT_DATA__). Extracts:
-    - title
-    - price
-    - mileage
-    - year
-    - fuel
-    - gearbox
-    - technical specs
-    - description
-    - up to 10 photos (bytes)
+    """
+    Парсер сторінки оголошення mobile.de без Selenium.
+
+    Робить:
+    - завантажує HTML сторінки оголошення;
+    - знаходить JSON у <script id="__NEXT_DATA__" type="application/json">;
+    - дістає з нього:
+        * title
+        * price
+        * mileage
+        * year (firstRegistration)
+        * fuel
+        * gearbox
+        * power_kw
+        * technical specs (dict)
+        * description
+        * до 10 фото (bytes) для Telegram sendMediaGroup.
+
+    Повертає dict або None, якщо не вдалось розпарсити.
     """
 
-    print("DEBUG: Fetching URL with Selenium:", url)
-    options = Options()
-    options.add_argument('--headless')
-    options.add_argument('--no-sandbox')
-    options.add_argument('--disable-dev-shm-usage')
-    options.add_argument('--disable-gpu')
-    options.add_argument('--window-size=1920,1080')
-
-    driver = webdriver.Chrome(options=options)
-    driver.set_page_load_timeout(30)  # 30 seconds timeout
+    print(f"DEBUG: parse_mobile_de() fetching {url}")
     try:
-        driver.get(url)
+        resp = requests.get(url, headers=HEADERS, timeout=20)
     except Exception as e:
-        print("DEBUG: Page load failed:", e)
-        driver.quit()
+        print("DEBUG: request failed:", e)
         return None
-    print("DEBUG: Current URL after load:", driver.current_url)
-    if '/auto-inserat/' not in driver.current_url:
-        print("DEBUG: URL did not redirect to listing page, skipping")
-        driver.quit()
-        return None
-    soup = BeautifulSoup(driver.page_source, "html.parser")
-    driver.quit()
 
-    # load main React JSON
+    if resp.status_code != 200:
+        print("DEBUG: bad status code:", resp.status_code)
+        return None
+
+    soup = BeautifulSoup(resp.text, "html.parser")
+
+    # ---- JSON із даними оголошення ----
     script_tag = soup.find("script", id="__NEXT_DATA__", type="application/json")
-    print("DEBUG: Script tag found:", script_tag is not None)
     if not script_tag:
+        print("DEBUG: __NEXT_DATA__ not found")
         return None
 
     try:
         data = json.loads(script_tag.string)
-        print("DEBUG: JSON loaded, keys:", list(data.keys()))
     except Exception as e:
-        print("DEBUG: JSON load failed:", e)
+        print("DEBUG: JSON load error:", e)
         return None
 
+    # шлях до adDetail у mobile.de (React/Next.js)
     try:
         listing = data["props"]["pageProps"]["adDetail"]
     except KeyError:
+        print("DEBUG: adDetail not found in JSON")
         return None
 
-    # Photos
-    photos = []
-    try:
-        imgs = listing["vehicleImages"]["images"]
-        for img in imgs[:10]:
-            img_url = img.get("url")
-            if img_url:
-                img_bytes = requests.get(img_url, headers=headers).content
-                photos.append(img_bytes)
-    except:
-        pass
+    # ---- Фотографії ----
+    photos: list[bytes] = []
 
+    try:
+        images = listing["vehicleImages"]["images"]
+        for img in images[:10]:       # максимум 10 фото
+            img_url = img.get("url")
+            if not img_url:
+                continue
+            try:
+                img_resp = requests.get(img_url, headers=HEADERS, timeout=20)
+                if img_resp.status_code == 200:
+                    photos.append(img_resp.content)
+            except Exception as e:
+                print("DEBUG: image download error:", e)
+                continue
+    except Exception as e:
+        print("DEBUG: images parse error:", e)
+
+    # ---- Основні дані ----
     basic = listing.get("basicData", {})
 
     title = basic.get("modelDescription") or ""
@@ -97,7 +110,7 @@ def parse_mobile_de(url: str):
         "emission_class": technical.get("emissionClass"),
     }
 
-    description = listing.get("description", "")
+    description = listing.get("description", "") or ""
 
     return {
         "title": title,
@@ -109,5 +122,5 @@ def parse_mobile_de(url: str):
         "power_kw": power_kw,
         "description": description,
         "specs": specs,
-        "photos": photos
+        "photos": photos,
     }
