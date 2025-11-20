@@ -52,6 +52,7 @@ def parse_mobile_de(url: str):
     try:
         driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
         driver.get(url)
+        print(f"DEBUG: final url {driver.current_url}")
         time.sleep(10)  # Wait for JS to load
         driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
         time.sleep(2)
@@ -66,18 +67,28 @@ def parse_mobile_de(url: str):
     # ---- JSON із даними оголошення ----
     script_tag = soup.find("script", type="application/json")
     if not script_tag:
-        print("DEBUG: application/json script not found")
-        return None
-    script_tag = soup.find("script", type="application/json")
-    if not script_tag:
-        print("DEBUG: application/json script not found")
-        return None
-
-    try:
-        data = json.loads(script_tag.string)
-    except Exception as e:
-        print("DEBUG: JSON load error:", e)
-        return None
+        # Try to find script with __NEXT_DATA__
+        script_tag = soup.find("script", string=lambda s: s and '__NEXT_DATA__' in s)
+        if script_tag:
+            # Extract JSON from window.__NEXT_DATA__ = {...};
+            script_content = script_tag.string
+            start = script_content.find('{')
+            end = script_content.rfind('}') + 1
+            json_str = script_content[start:end]
+            try:
+                data = json.loads(json_str)
+            except:
+                print("DEBUG: JSON load error from script")
+                return None
+        else:
+            print("DEBUG: __NEXT_DATA__ script not found")
+            return None
+    else:
+        try:
+            data = json.loads(script_tag.string)
+        except Exception as e:
+            print("DEBUG: JSON load error:", e)
+            return None
 
     # шлях до adDetail у mobile.de (React/Next.js)
     try:
