@@ -81,8 +81,47 @@ def parse_mobile_de(url: str):
                 print("DEBUG: JSON load error from script")
                 return None
         else:
-            print("DEBUG: __NEXT_DATA__ script not found")
-            return None
+            # Try ld+json
+            ld_script = soup.find("script", type="application/ld+json")
+            if ld_script:
+                try:
+                    ld_data = json.loads(ld_script.string)
+                    # Assume it's a Car schema
+                    if isinstance(ld_data, list):
+                        ld_data = ld_data[0] if ld_data else {}
+                    # Map to our format
+                    title = ld_data.get('name', '')
+                    price = ld_data.get('offers', {}).get('price')
+                    mileage = ld_data.get('mileageFromOdometer', {}).get('value')
+                    year = ld_data.get('modelDate')
+                    fuel = ld_data.get('fuelType')
+                    gearbox = ld_data.get('transmission')
+                    description = ld_data.get('description', '')
+                    photos = []
+                    images = ld_data.get('image', [])
+                    if isinstance(images, str):
+                        images = [images]
+                    for img in images[:10]:
+                        if isinstance(img, str):
+                            photos.append(requests.get(img, headers=HEADERS, timeout=20).content)
+                    return {
+                        "title": title,
+                        "price": price,
+                        "year": year,
+                        "mileage": mileage,
+                        "fuel": fuel,
+                        "gearbox": gearbox,
+                        "power_kw": None,
+                        "description": description,
+                        "specs": {},
+                        "photos": photos,
+                    }
+                except Exception as e:
+                    print("DEBUG: ld+json error:", e)
+                    return None
+            else:
+                print("DEBUG: No JSON found")
+                return None
     else:
         try:
             data = json.loads(script_tag.string)
