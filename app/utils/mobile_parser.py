@@ -3,11 +3,6 @@
 import json
 import requests
 from bs4 import BeautifulSoup
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
-from webdriver_manager.chrome import ChromeDriverManager
-import time
 
 
 HEADERS = {
@@ -19,173 +14,107 @@ HEADERS = {
 
 def parse_mobile_de(url: str):
     """
-    Парсер сторінки оголошення mobile.de з Selenium.
+    Парсер сторінки оголошення mobile.de з HTML.
 
     Робить:
-    - завантажує сторінку в headless Chrome;
-    - чекає на завантаження;
-    - знаходить JSON у <script id="__NEXT_DATA__" type="application/json">;
-    - дістає з нього:
-        * title
-        * price
-        * mileage
-        * year (firstRegistration)
-        * fuel
-        * gearbox
-        * power_kw
-        * technical specs (dict)
-        * description
-        * до 10 фото (bytes) для Telegram sendMediaGroup.
-
-    Повертає dict або None, якщо не вдалось розпарсити.
+    - завантажує HTML сторінки оголошення;
+    - витягує title, price, specs, description, photos з HTML;
+    - повертає dict або None, якщо не вдалось розпарсити.
     """
 
     print(f"DEBUG: parse_mobile_de() fetching {url}")
-    options = Options()
-    options.add_argument('--headless')
-    options.add_argument('--no-sandbox')
-    options.add_argument('--disable-dev-shm-usage')
-    options.add_argument('--disable-gpu')
-    options.add_argument('--window-size=1920,1080')
-    options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36')
-
     try:
-        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
-        driver.get(url)
-        print(f"DEBUG: final url {driver.current_url}")
-        time.sleep(10)  # Wait for JS to load
-        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-        time.sleep(2)
-        page_source = driver.page_source
-        driver.quit()
+        resp = requests.get(url, headers=HEADERS, timeout=20, allow_redirects=True)
     except Exception as e:
-        print("DEBUG: Selenium failed:", e)
+        print("DEBUG: request failed:", e)
         return None
 
-    soup = BeautifulSoup(page_source, "html.parser")
+    final_url = resp.url
+    print(f"DEBUG: final url {final_url}")
 
-    # ---- JSON із даними оголошення ----
-    script_tag = soup.find("script", type="application/json")
-    if not script_tag:
-        # Try to find script with __NEXT_DATA__
-        script_tag = soup.find("script", string=lambda s: s and '__NEXT_DATA__' in s)
-        if script_tag:
-            # Extract JSON from window.__NEXT_DATA__ = {...};
-            script_content = script_tag.string
-            start = script_content.find('{')
-            end = script_content.rfind('}') + 1
-            json_str = script_content[start:end]
-            try:
-                data = json.loads(json_str)
-            except:
-                print("DEBUG: JSON load error from script")
-                return None
-        else:
-            # Try ld+json
-            ld_script = soup.find("script", type="application/ld+json")
-            if ld_script:
-                try:
-                    ld_data = json.loads(ld_script.string)
-                    # Assume it's a Car schema
-                    if isinstance(ld_data, list):
-                        ld_data = ld_data[0] if ld_data else {}
-                    # Map to our format
-                    title = ld_data.get('name', '')
-                    price = ld_data.get('offers', {}).get('price')
-                    mileage = ld_data.get('mileageFromOdometer', {}).get('value')
-                    year = ld_data.get('modelDate')
-                    fuel = ld_data.get('fuelType')
-                    gearbox = ld_data.get('transmission')
-                    description = ld_data.get('description', '')
-                    photos = []
-                    images = ld_data.get('image', [])
-                    if isinstance(images, str):
-                        images = [images]
-                    for img in images[:10]:
-                        if isinstance(img, str):
-                            photos.append(requests.get(img, headers=HEADERS, timeout=20).content)
-                    return {
-                        "title": title,
-                        "price": price,
-                        "year": year,
-                        "mileage": mileage,
-                        "fuel": fuel,
-                        "gearbox": gearbox,
-                        "power_kw": None,
-                        "description": description,
-                        "specs": {},
-                        "photos": photos,
-                    }
-                except Exception as e:
-                    print("DEBUG: ld+json error:", e)
-                    return None
-            else:
-                print("DEBUG: No JSON found")
-                return None
-    else:
+    if resp.status_code != 200:
+        print("DEBUG: bad status code:", resp.status_code)
+        return None
+
+    if "/fahrzeuge/details.html" not in final_url:
+        print(f"DEBUG: final url is not a details page, skipping: {final_url}")
+        return None
+
+    soup = BeautifulSoup(resp.text, "html.parser")
+
+    # ---- title ----
+    title_el = soup.select_one("h1")
+    title = title_el.get_text(strip=True) if title_el else ""
+
+    # ---- price ----
+    price_el = soup.find(attrs={"data-testid": "prime-price"}) or \
+               soup.find(attrs={"data-testid": "price"})
+    price = None
+    if price_el:
+        txt = price_el.get_text(strip=True)
+        # залишаємо тільки цифри
+        digits = "".join(ch for ch in txt if ch.isdigit())
+        if digits:
+            price = int(digits)
+
+    # ---- technical data block ----
+    specs = {}
+    # приклад – береш конкретний селектор з твоєї сторінки:
+    rows = soup.select("[data-testid='vdp-tech-data'] dl") or \
+           soup.select("dl")  # TODO: замінити на реальний селектор
+    for row in rows:
+        dts = row.find_all("dt")
+        dds = row.find_all("dd")
+        for dt, dd in zip(dts, dds):
+            k = dt.get_text(strip=True)
+            v = dd.get_text(strip=True)
+            specs[k] = v
+
+    # З цих specs можна витягнути рік, пробіг, паливо, коробку – по ключам або regex
+    year = None
+    mileage = None
+    fuel = None
+    gearbox = None
+    power_kw = None
+    for k, v in specs.items():
+        if "Erstzulassung" in k or "year" in k.lower():
+            year = v
+        elif "Kilometerstand" in k or "mileage" in k.lower():
+            digits = "".join(ch for ch in v if ch.isdigit())
+            if digits:
+                mileage = int(digits)
+        elif "Kraftstoffart" in k or "fuel" in k.lower():
+            fuel = v
+        elif "Getriebeart" in k or "gearbox" in k.lower():
+            gearbox = v
+        elif "Leistung" in k or "power" in k.lower():
+            digits = "".join(ch for ch in v if ch.isdigit())
+            if digits:
+                power_kw = int(digits)
+
+    description_el = soup.find(attrs={"data-testid": "description"}) or \
+                     soup.find("section", attrs={"id": "description"})
+    description = description_el.get_text("\n", strip=True) if description_el else ""
+
+    # ---- photos ----
+    photos = []
+    img_tags = soup.select("[data-testid='image-gallery'] img") or \
+               soup.select("img[src*='mobile.de']")
+    for img in img_tags[:10]:
+        img_url = img.get("src") or img.get("data-src")
+        if not img_url or not img_url.startswith("http"):
+            continue
         try:
-            data = json.loads(script_tag.string)
+            img_resp = requests.get(img_url, headers=HEADERS, timeout=20)
+            if img_resp.status_code == 200:
+                photos.append(img_resp.content)
         except Exception as e:
-            print("DEBUG: JSON load error:", e)
-            return None
-
-    # шлях до adDetail у mobile.de (React/Next.js)
-    try:
-        listing = data["props"]["pageProps"]["adDetail"]
-    except KeyError:
-        print("DEBUG: adDetail not found in JSON")
-        return None
-
-    # ---- Фотографії ----
-    photos: list[bytes] = []
-
-    try:
-        images = listing["vehicleImages"]["images"]
-        for img in images[:10]:       # максимум 10 фото
-            img_url = img.get("url")
-            if not img_url:
-                continue
-            try:
-                img_resp = requests.get(img_url, headers=HEADERS, timeout=20)
-                if img_resp.status_code == 200:
-                    photos.append(img_resp.content)
-            except Exception as e:
-                print("DEBUG: image download error:", e)
-                continue
-    except Exception as e:
-        print("DEBUG: images parse error:", e)
-
-    # ---- Основні дані ----
-    basic = listing.get("basicData", {})
-
-    title = basic.get("modelDescription") or ""
-    price = listing.get("price", {}).get("consumerPrice", {}).get("amount")
-    mileage = basic.get("mileage")
-    first_reg = basic.get("firstRegistration")
-    fuel = basic.get("fuelType")
-    gearbox = basic.get("transmissionType")
-    power_kw = basic.get("kw")
-
-    technical = listing.get("technicalData", {})
-
-    specs = {
-        "year": first_reg,
-        "mileage": mileage,
-        "fuel": fuel,
-        "gearbox": gearbox,
-        "power_kw": power_kw,
-        "doors": technical.get("numberOfDoors"),
-        "consumption": technical.get("fuelConsumptionCombined"),
-        "co2": technical.get("co2EmissionCombined"),
-        "emission_class": technical.get("emissionClass"),
-    }
-
-    description = listing.get("description", "") or ""
+            print("DEBUG: image download error:", e)
 
     return {
         "title": title,
         "price": price,
-        "year": first_reg,
+        "year": year,
         "mileage": mileage,
         "fuel": fuel,
         "gearbox": gearbox,
