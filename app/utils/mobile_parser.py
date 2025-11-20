@@ -3,13 +3,27 @@
 import json
 import requests
 from bs4 import BeautifulSoup
+from app.scrapers.mobile_de_client import MobileDeClient
 
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                   "AppleWebKit/537.36 (KHTML, like Gecko) "
-                  "Chrome/123.0.0.0 Safari/537.36"
+                  "Chrome/123.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+    "Accept-Language": "en-US,en;q=0.9,de;q=0.8",
+    "Accept-Encoding": "gzip, deflate, br",
+    "DNT": "1",
+    "Connection": "keep-alive",
+    "Upgrade-Insecure-Requests": "1",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-User": "?1",
+    "Cache-Control": "max-age=0",
 }
+
+client = MobileDeClient()
 
 
 def parse_mobile_de(url: str):
@@ -24,6 +38,7 @@ def parse_mobile_de(url: str):
 
     print(f"DEBUG: parse_mobile_de() fetching {url}")
     try:
+        # First, get the final URL by following redirects
         resp = requests.get(url, headers=HEADERS, timeout=20, allow_redirects=True)
     except Exception as e:
         print("DEBUG: request failed:", e)
@@ -32,15 +47,17 @@ def parse_mobile_de(url: str):
     final_url = resp.url
     print(f"DEBUG: final url {final_url}")
 
-    if resp.status_code != 200:
-        print("DEBUG: bad status code:", resp.status_code)
-        return None
-
     if "/fahrzeuge/details.html" not in final_url:
         print(f"DEBUG: final url is not a details page, skipping: {final_url}")
         return None
 
-    soup = BeautifulSoup(resp.text, "html.parser")
+    # Now fetch the HTML using the client with proper headers and session
+    html = client.fetch(final_url, referer=url)
+    if html is None:
+        print(f"DEBUG: failed to fetch HTML for {final_url}")
+        return None
+
+    soup = BeautifulSoup(html, "html.parser")
 
     # ---- title ----
     title_el = soup.select_one("h1")
